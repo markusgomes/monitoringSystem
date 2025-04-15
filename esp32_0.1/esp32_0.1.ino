@@ -7,7 +7,20 @@
 #define DHT_INTERVIAL 30000
 #define DHTTYPE DHT22
 DHT dht(DHT_PIN, DHTTYPE);
-
+/*
+//MAX9814
+#define MAX_PIN 32
+#define SAMPLES 10
+float maxMaximas[SAMPLES];
+float maxMinimas[SAMPLES];
+#define SAMPLES_RMS 200
+#define SAMPLES_INTERVIAL 5000
+float rmsBuffer[SAMPLES_RMS];  // Buffer para armazenar todas as medições RMS
+#define DC_OFFSET 1.65         // Offset DC do MAX9814
+//#define GAIN_DB 60           // Ganho do módulo (60 dB)
+//#define MIC_SENSITIVITY -46  // Sensibilidade do microfone (ex: -46 dBV/Pa)
+//#define VREF_SPL 94          // 94 dB SPL = 1 Pa (referência padrão)
+*/
 
 const char* redes[][2] = {
   { "Gnomos_Ext_2.4", "Edu@rd00" },
@@ -106,6 +119,26 @@ void loop() {
     }
   }
 
+  /*
+    //MAX9814
+  static unsigned long lastMaxUpdate = 0;
+  if (millis() - lastMaxUpdate >= SAMPLE_INTERVAL) {
+    lastMaxUpdate = millis();
+
+    float sum_squares = 0;
+
+    for (int i = 0; i < SAMPLES_RMS; i++) {
+      float raw_voltage = analogReadMilliVolts(MAX_PIN) / 1000.0;  // Leitura em volts
+      float ac_signal = raw_voltage - DC_OFFSET;                   // Remove DC
+      sum_squares += ac_signal * ac_signal;
+      delayMicroseconds(100);  // Taxa de ~10 kHz
+    }
+
+    float currentRms = sqrt(sum_squares / SAMPLES_RMS);
+
+    // Cálculo do dB SPL (considerando ganho e sensibilidade)
+    //float dB_SPL = 20 * log10(rms) + VREF_SPL - MIC_SENSITIVITY - GAIN_DB;
+    */
 
   // Exemplo: Publica uma mensagem a cada 10 segundos
   static unsigned long lastPublishTime = 0;
