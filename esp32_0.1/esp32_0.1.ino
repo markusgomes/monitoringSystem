@@ -1,5 +1,13 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <DHT.h>
+
+//DHT22
+#define DHT_PIN 25
+#define DHT_INTERVIAL 30000
+#define DHTTYPE DHT22
+DHT dht(DHT_PIN, DHTTYPE);
+
 
 const char* redes[][2] = {
   { "Gnomos_Ext_2.4", "Edu@rd00" },
@@ -75,6 +83,30 @@ void loop() {
   }
   client.loop();
 
+  //DHT22
+  static unsigned long lastDHT = 0;
+  if (millis() - lastDHT >= DHT_INTERVIAL) {
+    lastDHT = millis();
+    float temperatura = dht.readTemperature();
+    float umidade = dht.readHumidity();
+
+    if (isnan(temperatura) || isnan(umidade)) {
+      Serial.println("[ERRO] Falha na leitura do DHT22. REINICIANDO...");
+      dht.begin();
+      return;
+    }
+
+    char payload[15];
+    snprintf(payload, sizeof(payload), "%.1f,%.1f", temperatura, umidade);
+
+    if (client.publish("sensores/dht22", payload)) {
+      Serial.printf("[OK] DHT22: %s\n", payload);
+    } else {
+      Serial.println("[ERRO] Falha ao publicar no MQTT");
+    }
+  }
+
+
   // Exemplo: Publica uma mensagem a cada 10 segundos
   static unsigned long lastPublishTime = 0;
   if (millis() - lastPublishTime > 10000) {
@@ -89,5 +121,4 @@ void loop() {
       Serial.println("Falha ao publicar!");
     }
   }
-  
 }
