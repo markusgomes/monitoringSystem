@@ -88,6 +88,21 @@ int compareDesc(const void* a, const void* b) {
   return (*(float*)a < *(float*)b) ? 1 : -1;
 }
 
+//FUNÇÃO ATUALIZAÇÃO RANKINGS
+void updateRankings(float dB) {
+  // Atualiza os mais altos (ordem crescente)
+  if (dB > maxMaximas[0]) {
+    maxMaximas[0] = dB;
+    qsort(maxMaximas, MAX_SAMPLES, sizeof(float), compareAsc);
+  }
+
+  // Atualiza os mais baixos (ordem decrescente)
+  if (dB < maxMinimas[0]) {
+    maxMinimas[0] = dB;
+    qsort(maxMinimas, MAX_SAMPLES, sizeof(float), compareDesc);
+  }
+}
+
 
 
 void setup() {
