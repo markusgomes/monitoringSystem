@@ -79,6 +79,14 @@ void reconnectToBrokerMqtt() {
   }
 }
 
+//FUNÇÕES DE COMPARAÇÃO (QSORT)
+int compareAsc(const void* a, const void* b) {
+  return (*(float*)a > *(float*)b) ? 1 : -1;
+}
+
+int compareDesc(const void* a, const void* b) {
+  return (*(float*)a < *(float*)b) ? 1 : -1;
+}
 
 
 
