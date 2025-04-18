@@ -103,6 +103,37 @@ void updateRankings(float dB) {
   }
 }
 
+//FUNÇÃO PUBLICAÇÃO MAX9814
+void publishMaxMin() {
+  char payloadMax[100];
+  char payloadMin[100];
+
+  // Formata 10 maiores (ordem decrescente)
+  snprintf(
+    payloadMax, sizeof(payloadMax),
+    "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f",
+    maxMaximas[9], maxMaximas[8], maxMaximas[7], maxMaximas[6],
+    maxMaximas[5], maxMaximas[4], maxMaximas[3], maxMaximas[2],
+    maxMaximas[1], maxMaximas[0]);
+
+  // Formata 10 menores (ordem crescente)
+  snprintf(
+    payloadMin, sizeof(payloadMin),
+    "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f",
+    maxMinimas[9], maxMinimas[8], maxMinimas[7], maxMinimas[6],  // Índices 9 a 0
+    maxMinimas[5], maxMinimas[4], maxMinimas[3], maxMinimas[2],
+    maxMinimas[1], maxMinimas[0]);
+
+  client.publish("sensores/max9814/max", payloadMax);
+  client.publish("sensores/max9814/min", payloadMin);
+
+  Serial.println("\n=== RANKINGS MAX9814 (Últimos 5s) ===");
+  Serial.print("Top 10 Mais Altos: ");
+  Serial.println(payloadMax);
+  Serial.print("Top 10 Mais Baixos: ");
+  Serial.println(payloadMin);
+  Serial.println("================================");
+}
 
 
 void setup() {
