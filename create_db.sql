@@ -33,7 +33,6 @@ CREATE TABLE max9814 (
     sessao_id INTEGER REFERENCES sessoes(id),
     maximo REAL NOT NULL,
     minimo REAL NOT NULL,
-    cycle INTEGER NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -52,6 +51,5 @@ CREATE TABLE max9814Controle (
     sessao_id INTEGER REFERENCES sessoes(id),
     maximo REAL NOT NULL,
     minimo REAL NOT NULL,
-    cycle INTEGER NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
