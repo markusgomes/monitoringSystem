@@ -14,6 +14,8 @@ CREATE TABLE sessoes (
     id BIGSERIAL PRIMARY KEY,
     usuario_id BIGINT REFERENCES usuarios(id),
     duracao INTEGER NOT NULL,
+    sensor_dht BOOLEAN NOT NULL DEFAULT false,
+    sensor_max BOOLEAN NOT NULL DEFAULT false,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
