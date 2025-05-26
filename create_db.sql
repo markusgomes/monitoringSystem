@@ -14,7 +14,6 @@ CREATE TABLE sessoes (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id),
     duracao INTEGER NOT NULL,
-    temperatura REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
