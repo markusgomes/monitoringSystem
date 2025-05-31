@@ -25,18 +25,27 @@ const char* redes[][2] = {
   { "Gnomos_2.4", "Edu@rd00" },
 };
 
+
 //CONF MQTT
 const char* mqtt_server = "192.168.15.24";
 const int mqtt_port = 1883;
 const char* mqtt_user = "servbd";
 const char* mqtt_password = "Un1f3sp1";
+const char* controlTopic = "sensores/control";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+
+//CONTROLE COLETA
+bool dhtEnabled = false;
+bool maxEnabled = false;
+bool collecting = false;
+
+
 //FUNÇÃO CONECTAR WIFI
 void connectToWiFi() {
-  int numRedes = sizeof(redes) / sizeof(redes[0]);  // Calcula o número de redes (4)
+  int numRedes = sizeof(redes) / sizeof(redes[0]);
 
   for (int i = 0; i < numRedes; i++) {
     Serial.printf("Conectando a: %s\n", redes[i][0]);
@@ -63,13 +72,14 @@ void connectToWiFi() {
   ESP.restart();
 }
 
+
 //FUNÇÃO RECONECTAR BROKER MQTT
 void reconnectToBrokerMqtt() {
   while (!client.connected()) {
     Serial.print("Tentando conexão MQTT...");
-    // Tenta conectar com client ID, usuário e senha
-    if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
+    if (client.connect("ESP32Test", mqtt_user, mqtt_password)) {
       Serial.println("Conectado ao broker!");
+      client.subscribe(controlTopic);
     } else {
       Serial.print("Falha, rc=");
       Serial.print(client.state());  // Código de erro
@@ -78,6 +88,34 @@ void reconnectToBrokerMqtt() {
     }
   }
 }
+
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  String message;
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+
+  message.toUpperCase();
+  if (message.indexOf("START") >= 0) {
+    dhtEnabled = false;
+    maxEnabled = false;
+    collecting = true;
+
+    if (message.indexOf("DHT") >= 0) {
+      dhtEnabled = true;
+    }
+
+    if (message.indexOf("MAX") >= 0) {
+      maxEnabled = true;
+    }
+  } else if (message.indexOf("STOP") >= 0) {
+    collecting = false;
+    dhtEnabled = false;
+    maxEnabled = false;
+    }
+}
+
 
 //FUNÇÕES DE COMPARAÇÃO (QSORT)
 int compareAsc(const void* a, const void* b) {
@@ -147,6 +185,9 @@ void setup() {
   connectToWiFi();
 
   client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(mqttCallback);
+
+  reconnectToBrokerMqtt();
 
   Serial.println("\nSISTEMA INICIANDO...");
 }
@@ -162,61 +203,59 @@ void loop() {
 
 
   //DHT22
-  static unsigned long lastDHT = 0;
-  if (millis() - lastDHT >= DHT_INTERVAL) {
-    lastDHT = millis();
+  if (collecting && dhtEnabled) {
+    static unsigned long lastDHT = 0;
+    if (millis() - lastDHT >= DHT_INTERVAL) {
+      lastDHT = millis();
+      float temperatura = dht.readTemperature();
+      float umidade = dht.readHumidity();
+      
+      if (isnan(temperatura) || isnan(umidade)) {
+        Serial.println("[ERRO] Falha na leitura do DHT22. REINICIANDO...");
+        dht.begin();
+        delay(2000);
+        return;
+      }
 
-    float temperatura = dht.readTemperature();
-    float umidade = dht.readHumidity();
-
-    if (isnan(temperatura) || isnan(umidade)) {
-      Serial.println("[ERRO] Falha na leitura do DHT22. REINICIANDO...");
-      dht.begin();
-      delay(2000);
-      return;
-    }
-
-    char payload[15];
-    snprintf(payload, sizeof(payload), "%.1f,%.1f", temperatura, umidade);
-
-    if (client.publish("sensores/dht22", payload)) {
-      Serial.printf("[OK] DHT22: %s\n", payload);
-    } else {
-      Serial.println("[ERRO] Falha ao publicar no MQTT");
+      char payload[15];
+      snprintf(payload, sizeof(payload), "%.1f,%.1f", temperatura, umidade);
+      if (client.publish("sensores/dht22", payload)) {
+        Serial.printf("[OK] DHT22: %s\n", payload);
+      } else {
+        Serial.println("[ERRO] Falha ao publicar no MQTT");
+      }
     }
   }
 
   //MAX9814
-  static unsigned long lastMaxUpdate = 0;
-  if (millis() - lastMaxUpdate >= MAX_INTERVAL) {
-    lastMaxUpdate = millis();
-
-    for (int i = 0; i < MAX_SAMPLES; i++) {
-      maxMaximas[i] = 0.0;
-      maxMinimas[i] = 150.0;
-    }
-
-    unsigned long startMillis = millis();
-    while (millis() - startMillis < MAX_INTERVAL) {
-
-      float sum_squares = 0;
-
-      for (int i = 0; i < SAMPLES_RMS; i++) {
-        float raw_voltage = analogReadMilliVolts(MAX_PIN) / 1000.0;  // Leitura em volts
-        float ac_signal = raw_voltage - DC_OFFSET;                   // Remove DC
-        sum_squares += ac_signal * ac_signal;
-        delayMicroseconds(100);
+  if (collecting && maxEnabled) {
+    static unsigned long lastMaxUpdate = 0;
+    if (millis() - lastMaxUpdate >= MAX_INTERVAL) {
+      lastMaxUpdate = millis();
+      for (int i = 0; i < MAX_SAMPLES; i++) {
+        maxMaximas[i] = 0.0;
+        maxMinimas[i] = 150.0;
       }
-
-      float currentRms = sqrt(sum_squares / SAMPLES_RMS);
-      float dB = 20 * log10(currentRms / 0.0001);  // Conversão para dB
-
-      updateRankings(dB);
-
-      delay(10);
+      
+      unsigned long startMillis = millis();
+      while (millis() - startMillis < MAX_INTERVAL) {
+        float sum_squares = 0;
+        for (int i = 0; i < SAMPLES_RMS; i++) {
+          float raw_voltage = analogReadMilliVolts(MAX_PIN) / 1000.0;  // Leitura em volts
+          float ac_signal = raw_voltage - DC_OFFSET;                   // Remove DC
+          sum_squares += ac_signal * ac_signal;
+          delayMicroseconds(100);
+        }
+        
+        float currentRms = sqrt(sum_squares / SAMPLES_RMS);
+        float dB = 20 * log10(currentRms / 0.006) + 94.0;  // Conversão para dB
+        
+        updateRankings(dB);
+        delay(10);
+      }
+      
+      publishMaxMin();
     }
-
-    publishMaxMin();
   }
 
 

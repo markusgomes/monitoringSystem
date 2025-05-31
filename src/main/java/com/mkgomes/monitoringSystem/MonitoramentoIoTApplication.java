@@ -2,12 +2,14 @@ package com.mkgomes.monitoringSystem;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
-public class SistemaDeMonitoramentoIoTApplication {
+@EnableConfigurationProperties
+public class MonitoramentoIoTApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(SistemaDeMonitoramentoIoTApplication.class, args);
+		SpringApplication.run(MonitoramentoIoTApplication.class, args);
 	}
 
 }

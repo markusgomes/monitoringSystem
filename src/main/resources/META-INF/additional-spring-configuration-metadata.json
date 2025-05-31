@@ -1,0 +1,27 @@
+{"properties": [
+  {
+    "name": "spring.mqtt.clientId",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.mqtt.clientId'"
+  },
+  {
+    "name": "spring.mqtt.broker",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.mqtt.broker'"
+  },
+  {
+    "name": "spring.mqtt.user",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.mqtt.user'"
+  },
+  {
+    "name": "spring.mqtt.password",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.mqtt.password'"
+  },
+  {
+    "name": "spring.mqtt.topics",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.mqtt.topics'"
+  }
+]}
