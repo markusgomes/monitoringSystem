@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css" />
+    <title>Controle de Coleta - Sensores IoT (Dht22 e Max9814)</title>
+</head>
+
+<body>
+
+    <h1>Controle de Coleta de Dados - Sensores IoT</h1>
+
+    <form id="cycleForm">
+
+        <div class="form-group">
+            <label>Sensores:</label>
+
+            <div class="sensor-options">
+                <label for="input_dht">
+                <input type="checkbox" id="input_dht" name="sensors" value="dht">
+                Dht22 - Temperatura(ºc) e Umidade(%)</label>
+
+                <label for="input_max">
+                <input type="checkbox" id="input_max" name="sensors" value="max">
+                Max9814 - Decibelímetro (dBA) </label>
+            </div>
+
+        </div>
+
+        <div class="form-group">
+
+            <div id="stopwatchContainer">
+                <div id="duracaoContainer">
+                    <label for="duracao">Duração (min):</label>
+                    <input type="number" id="duracao" name="duracao" min="1" max="9999" required>
+                </div>
+
+                <div id="timerContainer">
+                    <span>Tempo decorrido: </span>
+                    <span id="timerDisplay">00:00</span>
+                </div>
+            </div>
+
+            <div id="descriptionContainer">
+                <label for="description">Descrição:</label>
+                <input type="text" id="description" name="description">
+            </div>
+
+        </div>
+
+        <div class="form-group">
+            <button type="submit" class="btn-start">Iniciar Coleta</button>
+            <button type="button" class="btn-download" id="btnDownload" onclick="downloadCSV()" disabled
+                style="opacity: 0.5;">DOWNLOAD .CSV</button>
+        </div>
+
+    </form>
+
+    <script src="app.js"></script>
+
+</body>
+
+</html>
