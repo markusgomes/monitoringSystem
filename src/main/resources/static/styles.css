@@ -28,6 +28,12 @@ stylesbody {
     margin: 10px 0;
 }
 
+.timerContainer {
+    display: none; 
+    margin-top: 1em;
+
+}
+
 .button-group {
     display: flex;
     gap: 10px;

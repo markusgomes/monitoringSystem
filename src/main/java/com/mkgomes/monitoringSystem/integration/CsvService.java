@@ -6,6 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 import org.springframework.scheduling.annotation.Async;
@@ -59,7 +62,9 @@ public class CsvService {
             DhtEntity teste = dhtDados.get(i);
             DhtControleEntity controle = dhtControleDados.get(i);
 
-            String timestamp = sdf.format(teste.getDataHora());
+            LocalDateTime ldt = teste.getDataHora();
+            Date dataComoDate = Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
+            String timestamp = sdf.format(dataComoDate);
             
             String temperaturaTest = String.valueOf(teste.getTemperatura());
             String temperaturaControle = String.valueOf(controle.getTemperatura());
@@ -71,7 +76,7 @@ public class CsvService {
             .append(temperaturaTest).append(",")
             .append(temperaturaControle).append(",")
             .append(umidadeTest).append(",")
-            .append(umidadeControle);
+            .append(umidadeControle).append("\n");
         }
 
         Path path = Paths.get("/tmp/dados_sessao_" + sessaoDTO.getId() + ".csv");
