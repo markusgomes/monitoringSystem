@@ -14,6 +14,8 @@ CREATE TABLE sessoes (
     id BIGSERIAL PRIMARY KEY,
     usuario_id BIGINT REFERENCES usuarios(id),
     duracao INTEGER NOT NULL,
+    descricao TEXT,
+    amostra TEXT,
     sensor_dht BOOLEAN NOT NULL DEFAULT false,
     sensor_max BOOLEAN NOT NULL DEFAULT false,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -25,6 +27,14 @@ CREATE TABLE dht22 (
     sessao_id BIGINT REFERENCES sessoes(id),
     temperatura REAL NOT NULL,
     umidade REAL NOT NULL,
+    data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Criação da Tabela do Sensor MLX90614
+CREATE TABLE mlx90614 (
+    id BIGSERIAL PRIMARY KEY,
+    sessao_id BIGINT REFERENCES sessoes(id),
+    temperatura REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -43,6 +53,14 @@ CREATE TABLE dht22Controle (
     sessao_id BIGINT REFERENCES sessoes(id),
     temperatura REAL NOT NULL,
     umidade REAL NOT NULL,
+    data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Criação da Tabela do Sensor MLX90614
+CREATE TABLE mlx90614Controle (
+    id BIGSERIAL PRIMARY KEY,
+    sessao_id BIGINT REFERENCES sessoes(id),
+    temperatura REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
