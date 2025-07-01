@@ -13,12 +13,20 @@ CREATE TABLE usuarios (
 CREATE TABLE sessoes (
     id BIGSERIAL PRIMARY KEY,
     usuario_id BIGINT REFERENCES usuarios(id),
-    duracao INTEGER NOT NULL,
     descricao TEXT,
     amostra TEXT,
     sensor_dht BOOLEAN NOT NULL DEFAULT false,
     sensor_max BOOLEAN NOT NULL DEFAULT false,
+    sensor_mlx BOOLEAN NOT NULL DEFAULT false,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Criação da Tabela de Ciclos
+CREATE TABLE ciclos (
+    id BIGSERIAL PRIMARY KEY,
+    sessao_id BIGINT REFERENCES sessoes(id),
+    duracao INTEGER NOT NULL,
+    temperatura REAL NOT NULL
 );
 
 -- Criação da Tabela do Sensor DHT22
