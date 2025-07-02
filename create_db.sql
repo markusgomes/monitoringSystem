@@ -26,7 +26,7 @@ CREATE TABLE ciclos (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
     duracao INTEGER NOT NULL,
-    temperatura REAL NOT NULL
+    temperatura REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
