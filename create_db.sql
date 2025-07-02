@@ -27,6 +27,7 @@ CREATE TABLE ciclos (
     sessao_id BIGINT REFERENCES sessoes(id),
     duracao INTEGER NOT NULL,
     temperatura REAL NOT NULL
+    data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Criação da Tabela do Sensor DHT22
@@ -42,7 +43,8 @@ CREATE TABLE dht22 (
 CREATE TABLE mlx90614 (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
-    temperatura REAL NOT NULL,
+    temp_a REAL NOT NULL,
+    temp_ir REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -68,7 +70,8 @@ CREATE TABLE dht22Controle (
 CREATE TABLE mlx90614Controle (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
-    temperatura REAL NOT NULL,
+    temp_a REAL NOT NULL,
+    temp_ir REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
