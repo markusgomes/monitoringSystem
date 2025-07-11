@@ -1,13 +1,38 @@
+
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <Adafruit_MLX90614.h>
+#include <Wire.h>
 #include <math.h>
+#include <time.h>
+#include <vector>
+
 
 //DHT22
 const int DHT_PIN = 25;
-const unsigned long DHT_INTERVAL = 30000;
 #define DHTTYPE DHT22
 DHT dht(DHT_PIN, DHTTYPE);
+
+
+//MLX90614
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+
+
+//BUFFER
+struct Leitura {
+  time_t epoch;
+  String horario;
+  unsigned long millisRelativo;
+  float v1;
+  float v2;
+};
+
+std::vector<Leitura> bufferDHT;
+std::vector<Leitura> bufferMLX;
+
+unsigned long lastPublishTime = 0;
+const unsigned long MQTT_BATCH_INTERVAL = 60000;
 
 //MAX9814
 const int MAX_PIN = 32;
@@ -32,6 +57,10 @@ const int mqtt_port = 1883;
 const char* mqtt_user = "servbd";
 const char* mqtt_password = "Un1f3sp1";
 const char* controlTopic = "sensores/control";
+const char* statusTopic = "sensores/status";
+
+TaskHandle_t taskHandleDHT = NULL;
+TaskHandle_t taskHandleMLX = NULL;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -39,8 +68,11 @@ PubSubClient client(espClient);
 
 //CONTROLE COLETA
 bool dhtEnabled = false;
+bool mlxEnabled = false;
 bool maxEnabled = false;
 bool collecting = false;
+unsigned long intervaloLeituraMs = 30000;
+unsigned long millisInicioColeta = 0;
 
 
 //FUNÇÃO CONECTAR WIFI
@@ -77,7 +109,7 @@ void connectToWiFi() {
 void reconnectToBrokerMqtt() {
   while (!client.connected()) {
     Serial.print("Tentando conexão MQTT...");
-    if (client.connect("ESP32Controle", mqtt_user, mqtt_password)) {
+    if (client.connect("ESP32CONTROLE", mqtt_user, mqtt_password)) {
       Serial.println("Conectado ao broker!");
       client.subscribe(controlTopic);
     } else {
@@ -89,6 +121,14 @@ void reconnectToBrokerMqtt() {
   }
 }
 
+String horarioAtual(time_t epoch) {
+  struct tm timeinfo;
+  if (!localtime_r(&epoch, &timeinfo)) return "--:--:--";
+  char buffer[10];
+  strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+  return String(buffer);
+}
+
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String message;
@@ -97,25 +137,172 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 
   message.toUpperCase();
+
   if (message.indexOf("START") >= 0) {
     dhtEnabled = false;
+    mlxEnabled = false;
     maxEnabled = false;
     collecting = true;
+    millisInicioColeta = millis();
 
     if (message.indexOf("DHT") >= 0) {
       dhtEnabled = true;
     }
 
+    if (message.indexOf("MLX") >= 0) {
+      mlxEnabled = true;
+    }
+
     if (message.indexOf("MAX") >= 0) {
       maxEnabled = true;
     }
+
+    int idx = message.lastIndexOf(",");
+    if (idx != -1) {
+      int valor = message.substring(idx + 1).toInt();
+      if (valor >= 1 && valor <= 60) {
+        intervaloLeituraMs = 60000 / valor;
+        Serial.printf("[CONFIG] Intervalo leitura: %lu ms\n", intervaloLeituraMs);
+      }
+    }
+
+    if (dhtEnabled && taskHandleDHT == NULL) {
+      xTaskCreatePinnedToCore(taskLeituraDHT, "LeituraDHT", 4096, NULL, 1, &taskHandleDHT, 1);
+    }
+
+    if (mlxEnabled && taskHandleMLX == NULL) {
+      xTaskCreatePinnedToCore(taskLeituraMLX, "LeituraMLX", 4096, NULL, 1, &taskHandleMLX, 1);
+    }
+
   } else if (message.indexOf("STOP") >= 0) {
     collecting = false;
     dhtEnabled = false;
     maxEnabled = false;
+
+    if (!bufferDHT.empty() || !bufferMLX.empty()) {
+      publicarBufferMQTT();
+
+      if (taskHandleDHT != NULL) {
+        vTaskDelete(taskHandleDHT);
+        taskHandleDHT = NULL;
+        Serial.println("[TASK] LeituraDHT finalizada.");
+      }
     }
+  }
 }
 
+
+void taskLeituraDHT(void* parameter) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  for (;;) {
+    if (collecting && dhtEnabled) {
+      float temperatura = dht.readTemperature();
+      float umidade = dht.readHumidity();
+
+      Leitura dado;
+      dado.epoch = time(nullptr);
+      dado.horario = horarioAtual(dado.epoch);
+      dado.millisRelativo = (millis() - millisInicioColeta) / 1000;
+
+      if (!isnan(temperatura) && !isnan(umidade)) {
+        dado.v1 = temperatura;
+        dado.v2 = umidade;
+        Serial.printf("[DHT22-CONTROLE] Temperatura: %.1f°C Umidade: %.1f%%\n", temperatura, umidade);
+      } else {
+        dado.v1 = 0.0;
+        dado.v2 = 0.0;
+        dht.begin();
+        Serial.println("[DHT22-CONTROLE] ERROR_LEITURA");
+        client.publish("sensoresControle/dht/error", "[DHT22-CONTROLE] ERROR_LEITURA");
+      }
+      bufferDHT.push_back(dado);
+    }
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(intervaloLeituraMs));
+  }
+}
+
+
+void taskLeituraMLX(void* parameter) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  for (;;) {
+    if (collecting && mlxEnabled) {
+      float tempA = mlx.readAmbientTempC();
+      float tempIR = mlx.readObjectTempC();
+
+      if (!isnan(tempA) && !isnan(tempIR)) {
+        Leitura dado;
+        dado.epoch = time(nullptr);
+        dado.horario = horarioAtual(dado.epoch);
+        dado.millisRelativo = (millis() - millisInicioColeta) / 1000;
+        dado.v1 = tempA;
+        dado.v2 = tempIR;
+        bufferMLX.push_back(dado);
+        Serial.printf("[MLX90614-CONTROLE] Temp-Amb: %.1f°C Temp-IR: %.1f°C\n", tempA, tempIR);
+      } else {
+        Serial.println("[MLX90614-CONTROLE] ERROR_LEITURA");
+        client.publish("sensoresControle/mlx/error", "[MLX90614-CONTROLE] ERROR_LEITURA");
+      }
+    }
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(intervaloLeituraMs));
+  }
+}
+
+
+void publicarBufferMQTT() {
+  const size_t LIMITE_BUFFER = 50;
+  const int LINHAS_POR_PUBLICACAO = 10;
+  const char* topicoDHT_Controle = "sensoresControle/dht/dados";
+  const char* topicoErro = "sensoresControle/dht/error";
+
+  if (bufferDHT.size() > LIMITE_BUFFER) {
+    Serial.printf("[MQTT-BUFFER] ERROR_BUFFER_LIMITE-MAX");
+    client.publish(topicoErro, "[MQTT-BUFFER] ERROR_BUFFER_LIMITE-MAX");
+    bufferDHT.clear();
+  }
+
+  if (bufferDHT.empty() && bufferMLX.empty()) {
+    Serial.println("[MQTT-BUFFER] ERROR_BUFFER");
+    client.publish("sensoresControle/error", "[MQTT-BUFFER] ERROR_BUFFER");
+    return;
+  }
+
+
+  // DHT
+  if (!bufferDHT.empty()) {
+    for (int i = 0; i < bufferDHT.size(); i += LINHAS_POR_PUBLICACAO) {
+      String csv = "";
+
+      for (int j = i; j < i + LINHAS_POR_PUBLICACAO && j < bufferDHT.size(); j++) {
+        Leitura& dado = bufferDHT[j];
+        csv += dado.horario + "," + String(dado.millisRelativo) + "," + String(dado.v1, 1) + "," + String(dado.v2, 1) + "\n";
+      }
+
+      if (client.publish(topicoDHT_Controle, csv.c_str())) {
+        Serial.println("[MQTT] DHT22-CONTROLE_PUBLICADO");
+      } else {
+        Serial.println("[MQTT] ERROR_PUBLICAR_DHT22-CONTROLE");
+        client.publish(topicoErro, "[MQTT] ERROR_PUBLICAR_DHT22-CONTROLE");
+      }
+    }
+    bufferDHT.clear();
+  }
+
+  // MLX
+  if (!bufferMLX.empty()) {
+    String csv = "";
+    for (auto& dado : bufferMLX) {
+      csv += dado.horario + "," + String(dado.millisRelativo) + "," + String(dado.v1, 1) + "," + String(dado.v2, 1) + "\n";
+    }
+
+    if (client.publish("sensoresControle/mlx/dados", csv.c_str())) {
+      Serial.println("[MQTT] MLX90614-CONTROLE_PUBLICADO");
+      bufferMLX.clear();
+    } else {
+      Serial.println("[MQTT] ERROR_PUBLICAR_MLX90614-CONTROLE");
+      client.publish("sensoresControle/mlx/error", "[MQTT] ERROR_PUBLICAR_MLX90614-CONTROLE");
+    }
+  }
+}
 
 //FUNÇÕES DE COMPARAÇÃO (QSORT)
 int compareAsc(const void* a, const void* b) {
@@ -177,6 +364,8 @@ void publishMaxMin() {
 void setup() {
   Serial.begin(115200);
   dht.begin();
+  Wire.begin();
+  mlx.begin();
 
   analogReadResolution(12);                    // ADC de 12 bits (0-4095)
   analogSetPinAttenuation(MAX_PIN, ADC_11db);  // Atenuação para 3.3V
@@ -186,6 +375,26 @@ void setup() {
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(mqttCallback);
+
+  float t = dht.readTemperature();
+  float h = dht.readHumidity();
+  if (isnan(t) || isnan(h)) {
+    Serial.println("[ERROR] DHT22_INDISPONIVEL");
+    client.publish("sensoresControle/dht", "[ERROR] DHT22_INDISPONIVEL");
+  } else {
+    Serial.println("[OK] DHT22_DISPONIVEL");
+    client.publish("sensoresControle/dht", "[OK] DHT22_DISPONIVEL");
+  }
+
+  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  Serial.println("Aguardando sincronização NTP...");
+
+  struct tm timeinfo;
+  while (!getLocalTime(&timeinfo)) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nNTP sincronizado!");
 
   Serial.println("\nSISTEMA INICIANDO...");
 }
@@ -200,7 +409,32 @@ void loop() {
   client.loop();
 
 
-  //DHT22
+  unsigned long agora = millis();
+  if (collecting && (!bufferDHT.empty() || !bufferMLX.empty())) {
+    if (agora - lastPublishTime >= MQTT_BATCH_INTERVAL) {
+      lastPublishTime = agora;
+      publicarBufferMQTT();
+    }
+  }
+
+  static unsigned long lastHeartbeat = 0;
+  if (millis() - lastHeartbeat >= 10000) {
+    time_t horaAtual = time(nullptr);
+    String hora = horarioAtual(horaAtual);
+    lastHeartbeat = millis();
+    String payload = "[MQTT_CONTROLE_OK]: " + hora + " | " + String(millis() / 1000) + "s";
+    client.publish(statusTopic, payload.c_str());
+  }
+
+  static unsigned long lastLog = 0;
+  if (millis() - lastLog > 10000) {
+    time_t horaAtual = time(nullptr);
+    String hora = horarioAtual(horaAtual);
+    lastLog = millis();
+    String payload = "[MQTT_LOOP_OK]: " + hora + " | " + String(millis() / 1000) + "s";
+    client.publish(statusTopic, payload.c_str());
+  }
+  /*//DHT22
   if (collecting && dhtEnabled) {
     static unsigned long lastDHT = 0;
     if (millis() - lastDHT >= DHT_INTERVAL) {
@@ -223,7 +457,8 @@ void loop() {
         Serial.println("[ERRO] Falha ao publicar no MQTT");
       }
     }
-  }
+  }*/
+
 
   //MAX9814
   if (collecting && maxEnabled) {
@@ -234,7 +469,7 @@ void loop() {
         maxMaximas[i] = 0.0;
         maxMinimas[i] = 150.0;
       }
-      
+
       unsigned long startMillis = millis();
       while (millis() - startMillis < MAX_INTERVAL) {
         float sum_squares = 0;
@@ -244,31 +479,15 @@ void loop() {
           sum_squares += ac_signal * ac_signal;
           delayMicroseconds(100);
         }
-        
+
         float currentRms = sqrt(sum_squares / SAMPLES_RMS);
         float dB = 20 * log10(currentRms / 0.006) + 94.0;  // Conversão para dB
-        
+
         updateRankings(dB);
         delay(10);
       }
-      
+
       publishMaxMin();
-    }
-  }
-
-
-  // Exemplo: Publica uma mensagem a cada 10 segundos
-  static unsigned long lastPublishTime = 0;
-  if (millis() - lastPublishTime > 10000) {
-    lastPublishTime = millis();
-
-    String mensagem = "Olá, MQTT Teste!";
-    bool publicado = client.publish("topico_de_exemplo", mensagem.c_str());
-
-    if (publicado) {
-      Serial.println("Mensagem publicada: " + mensagem);
-    } else {
-      Serial.println("Falha ao publicar!");
     }
   }
 }
