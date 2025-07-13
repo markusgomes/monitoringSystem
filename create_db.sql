@@ -27,6 +27,7 @@ CREATE TABLE ciclos (
     sessao_id BIGINT REFERENCES sessoes(id),
     duracao INTEGER NOT NULL,
     temperatura REAL NOT NULL,
+    quant_cap INTEGER NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -34,6 +35,9 @@ CREATE TABLE ciclos (
 CREATE TABLE dht22 (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
+    ciclo_id BIGINT REFERENCES ciclos(id),
+    horario TEXT,
+    millis_relativo BIGINT,
     temperatura REAL NOT NULL,
     umidade REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -43,6 +47,9 @@ CREATE TABLE dht22 (
 CREATE TABLE mlx90614 (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
+    ciclo_id BIGINT REFERENCES ciclos(id),
+    horario TEXT,
+    millis_relativo BIGINT,
     temp_a REAL NOT NULL,
     temp_ir REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -61,15 +68,21 @@ CREATE TABLE max9814 (
 CREATE TABLE dht22Controle (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
+    ciclo_id BIGINT REFERENCES ciclos(id),
+    horario TEXT,
+    millis_relativo BIGINT,
     temperatura REAL NOT NULL,
     umidade REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Criação da Tabela do Sensor MLX90614
+-- Criação da Tabela do Sensor Controle MLX90614
 CREATE TABLE mlx90614Controle (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
+    ciclo_id BIGINT REFERENCES ciclos(id),
+    horario TEXT,
+    millis_relativo BIGINT,
     temp_a REAL NOT NULL,
     temp_ir REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -79,6 +92,7 @@ CREATE TABLE mlx90614Controle (
 CREATE TABLE max9814Controle (
     id BIGSERIAL PRIMARY KEY,
     sessao_id BIGINT REFERENCES sessoes(id),
+    ciclo_id BIGINT REFERENCES ciclos(id),
     maximo REAL NOT NULL,
     minimo REAL NOT NULL,
     data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
