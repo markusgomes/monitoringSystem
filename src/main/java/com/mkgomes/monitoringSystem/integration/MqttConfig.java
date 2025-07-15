@@ -52,6 +52,7 @@ public class MqttConfig {
             @Override
             public void messageArrived(String topic, MqttMessage message) {
                 String payload = new String(message.getPayload());
+                System.out.printf("[MQTT-RECEBIDO]: Tópico: %s | Payload: %s%n", topic, payload);
                 mqttMessageHandler.handle(topic, payload);
             }
 
@@ -72,6 +73,7 @@ public class MqttConfig {
 
             @Override
             public void deliveryComplete(IMqttToken token) {
+                System.out.println("[MQTT_BACK-END]: ENVIADO_SUCESSO");
             }
 
             @Override

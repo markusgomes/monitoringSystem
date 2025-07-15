@@ -4,14 +4,14 @@ import org.springframework.stereotype.Service;
 
 import com.mkgomes.monitoringSystem.model.dto.MaxData;
 import com.mkgomes.monitoringSystem.model.entity.MaxEntity;
-import com.mkgomes.monitoringSystem.repository.MaxRepository;
+import com.mkgomes.monitoringSystem.repository.MaxTesteRepository;
 
 @Service
 public class MaxService implements IMaxService {
     
-    private final MaxRepository maxRepository;
+    private final MaxTesteRepository maxRepository;
 
-    public MaxService(MaxRepository maxRepository) {
+    public MaxService(MaxTesteRepository maxRepository) {
         this.maxRepository = maxRepository;
     }
 

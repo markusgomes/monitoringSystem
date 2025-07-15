@@ -25,8 +25,11 @@ public class SessaoEntity {
     @JoinColumn(name = "usuario_id", nullable = false)
     private UsuarioEntity usuario;
 
-    @Column(name = "duracao", nullable = false)
-    private Integer duracao;
+    @Column(name = "amostra", nullable = false, length = 250)
+    private String amostra;
+
+    @Column(name = "descricao", nullable = false, length = 250)
+    private String descricao;
 
     @Column(name = "data_hora", nullable = false)
     private LocalDateTime dataHoraCriacao = LocalDateTime.now();
@@ -37,13 +40,17 @@ public class SessaoEntity {
     @Column(name = "sensor_max", nullable = false)
     private boolean sensorMax = false;
 
+    @Column(name = "sensor_mlx", nullable = false)
+    private boolean sensorMlx = false;
 
     public SessaoEntity() {}
 
-    public SessaoEntity(UsuarioEntity usuario, Integer duracao, 
-                        boolean sensorDht, boolean sensorMax) {
+    public SessaoEntity(UsuarioEntity usuario,String amostra, String descricao, 
+                        boolean sensorMlx, boolean sensorDht, boolean sensorMax) {
         this.usuario = usuario;
-        this.duracao = duracao;
+        this.amostra = amostra;
+        this.descricao = descricao;
+        this.sensorMlx = sensorMlx;
         this.sensorDht = sensorDht;
         this.sensorMax = sensorMax;
     }
@@ -64,12 +71,20 @@ public class SessaoEntity {
         this.usuario = usuario;
     }
 
-    public Integer getDuracao() {
-        return duracao;
+    public String getAmostra() {
+        return amostra;
     }
 
-    public void setDuracao(Integer duracao) {
-        this.duracao = duracao;
+    public void setAmostra(String amostra) {
+        this.amostra = amostra;
+    }
+
+    public String getDescricao() {
+        return descricao;
+    }
+
+    public void setDescricao(String descricao) {
+        this.descricao = descricao;
     }
 
     public LocalDateTime getDataHoraCriacao() {
@@ -96,5 +111,11 @@ public class SessaoEntity {
         this.sensorMax = sensorMax;
     }
 
+    public boolean isSensorMlx() {
+        return sensorMlx;
+    }
 
+    public void setSensorMlx(boolean sensorMlx) {
+        this.sensorMlx = sensorMlx;
+    }
 }

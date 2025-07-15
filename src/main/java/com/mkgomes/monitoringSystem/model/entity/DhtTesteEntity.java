@@ -1,7 +1,6 @@
 package com.mkgomes.monitoringSystem.model.entity;
 
 import java.time.LocalDateTime;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -13,9 +12,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "dht22Controle")
+@Table(name = "dht22")
 
-public class DhtControleEntity {
+public class DhtTesteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,10 +42,11 @@ public class DhtControleEntity {
     private LocalDateTime dataHora = LocalDateTime.now();
 
 
-    public DhtControleEntity() {}
+    public DhtTesteEntity() {}
 
-    public DhtControleEntity(SessaoEntity sessao, CicloEntity ciclo, Long millisRelativo,
-            Float temperatura, Float umidade, LocalDateTime dataHora) {
+    public DhtTesteEntity(SessaoEntity sessao, CicloEntity ciclo, Long millisRelativo,
+            Float temperatura,
+            Float umidade, LocalDateTime dataHora) {
         this.sessao = sessao;
         this.ciclo = ciclo;
         this.millisRelativo = millisRelativo;
@@ -54,7 +54,7 @@ public class DhtControleEntity {
         this.umidade = umidade;
         this.dataHora = dataHora;
     }
-    
+
 
     public Long getId() {
         return id;

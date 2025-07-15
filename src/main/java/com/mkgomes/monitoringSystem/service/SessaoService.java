@@ -13,7 +13,7 @@ import com.mkgomes.monitoringSystem.repository.SessaoRepository;
 import jakarta.persistence.EntityNotFoundException;
 
 @Service
-public class SessaoService {
+public class SessaoService implements ISessaoService {
 
     @Autowired
     private SessaoRepository sessaoRepository;
@@ -35,13 +35,14 @@ public class SessaoService {
 
         SessaoDTO sessaoDTO = new SessaoDTO();
         sessaoDTO.setId(sessao.getId());
-        sessaoDTO.setDuracao(sessao.getDuracao());
+        sessaoDTO.setAmostra(sessao.getAmostra());
+        sessaoDTO.setDescricao(sessao.getDescricao());
         sessaoDTO.setSensorDht(sessao.isSensorDht());
+        sessaoDTO.setSensorMlx(sessao.isSensorMlx());
         sessaoDTO.setSensorMax(sessao.isSensorMax());
         sessaoDTO.setUsuario(usuarioDTO);
         sessaoDTO.setDataHoraCriacao(sessao.getDataHoraCriacao());
 
         return sessaoDTO;
     }
-
 }

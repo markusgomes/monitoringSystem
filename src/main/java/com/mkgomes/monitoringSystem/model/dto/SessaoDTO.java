@@ -4,12 +4,13 @@ import java.time.LocalDateTime;
 
 public class SessaoDTO {
     private Long id;
-    private int duracao;
+    private UsuarioDTO usuario;
+    private String descricao;
+    private String amostra;
     private boolean sensorDht;
     private boolean sensorMax;
-    private UsuarioDTO usuario;
+    private boolean sensorMlx;
     private LocalDateTime dataHoraCriacao;
-
 
     public Long getId() {
         return id;
@@ -17,11 +18,23 @@ public class SessaoDTO {
     public void setId(Long id) {
         this.id = id;
     }
-    public int getDuracao() {
-        return duracao;
+    public UsuarioDTO getUsuario() {
+        return usuario;
     }
-    public void setDuracao(int duracao) {
-        this.duracao = duracao;
+    public void setUsuario(UsuarioDTO usuario) {
+        this.usuario = usuario;
+    }
+    public String getDescricao() {
+        return descricao;
+    }
+    public void setDescricao(String descricao) {
+        this.descricao = descricao;
+    }
+    public String getAmostra() {
+        return amostra;
+    }
+    public void setAmostra(String amostra) {
+        this.amostra = amostra;
     }
     public boolean isSensorDht() {
         return sensorDht;
@@ -35,11 +48,11 @@ public class SessaoDTO {
     public void setSensorMax(boolean sensorMax) {
         this.sensorMax = sensorMax;
     }
-    public UsuarioDTO getUsuario() {
-        return usuario;
+    public boolean isSensorMlx() {
+        return sensorMlx;
     }
-    public void setUsuario(UsuarioDTO usuario) {
-        this.usuario = usuario;
+    public void setSensorMlx(boolean sensorMlx) {
+        this.sensorMlx = sensorMlx;
     }
     public LocalDateTime getDataHoraCriacao() {
         return dataHoraCriacao;
@@ -47,5 +60,4 @@ public class SessaoDTO {
     public void setDataHoraCriacao(LocalDateTime dataHoraCriacao) {
         this.dataHoraCriacao = dataHoraCriacao;
     }
-    
 }

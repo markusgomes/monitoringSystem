@@ -13,13 +13,12 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "dht22Controle")
-
-public class DhtControleEntity {
+@Table(name = "mlx90614controle")
+public class MlxControleEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
+    @Column(name="id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -33,29 +32,29 @@ public class DhtControleEntity {
     @Column(name = "millis_relativo", nullable = false)
     private Long millisRelativo;
 
-    @Column(name = "temperatura", nullable = false)
-    private Float temperatura;
+    @Column(name = "temp_a", nullable = false)
+    private Float tempAmb;
 
-    @Column(name = "umidade", nullable = false)
-    private Float umidade;
+    @Column(name = "temp_ir", nullable = false)
+    private Float tempIR;
 
     @Column(name = "data_hora", nullable = false)
     private LocalDateTime dataHora = LocalDateTime.now();
 
+    
+    public MlxControleEntity() {}
 
-    public DhtControleEntity() {}
-
-    public DhtControleEntity(SessaoEntity sessao, CicloEntity ciclo, Long millisRelativo,
-            Float temperatura, Float umidade, LocalDateTime dataHora) {
+    public MlxControleEntity(SessaoEntity sessao, CicloEntity ciclo, Long millisRelativo, Float tempAmb, Float tempIR,
+            LocalDateTime dataHora) {
         this.sessao = sessao;
         this.ciclo = ciclo;
         this.millisRelativo = millisRelativo;
-        this.temperatura = temperatura;
-        this.umidade = umidade;
+        this.tempAmb = tempAmb;
+        this.tempIR = tempIR;
         this.dataHora = dataHora;
     }
-    
 
+    
     public Long getId() {
         return id;
     }
@@ -88,20 +87,20 @@ public class DhtControleEntity {
         this.millisRelativo = millisRelativo;
     }
 
-    public Float getTemperatura() {
-        return temperatura;
+    public Float getTempAmb() {
+        return tempAmb;
     }
 
-    public void setTemperatura(Float temperatura) {
-        this.temperatura = temperatura;
+    public void setTempAmb(Float tempAmb) {
+        this.tempAmb = tempAmb;
     }
 
-    public Float getUmidade() {
-        return umidade;
+    public Float getTempIR() {
+        return tempIR;
     }
 
-    public void setUmidade(Float umidade) {
-        this.umidade = umidade;
+    public void setTempIR(Float tempIR) {
+        this.tempIR = tempIR;
     }
 
     public LocalDateTime getDataHora() {

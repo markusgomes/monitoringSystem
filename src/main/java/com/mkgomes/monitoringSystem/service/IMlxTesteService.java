@@ -1,10 +1,10 @@
 package com.mkgomes.monitoringSystem.service;
 
-import com.mkgomes.monitoringSystem.model.dto.DhtData;
+import com.mkgomes.monitoringSystem.model.dto.MlxData;
 import com.mkgomes.monitoringSystem.model.entity.CicloEntity;
 import com.mkgomes.monitoringSystem.model.entity.SessaoEntity;
 
-public interface IDhtControleService {
+public interface IMlxTesteService {
     
-    public void saveData(DhtData dhtData, SessaoEntity sessao, CicloEntity ciclo);
+    public void saveData(MlxData mlxData, SessaoEntity sessao, CicloEntity ciclo);
 }

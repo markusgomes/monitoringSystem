@@ -1,4 +1,3 @@
-
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
@@ -6,18 +5,17 @@
 #include <Wire.h>
 #include <math.h>
 #include <time.h>
-#include <vector>
 
 
-//DHT22
+// DHT22
 const int DHT_PIN = 25;
 #define DHTTYPE DHT22
 DHT dht(DHT_PIN, DHTTYPE);
 
-//MLX90614
+// MLX90614
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 
-//MAX9814
+// MAX9814
 const int MAX_PIN = 32;
 const int MAX_SAMPLES = 10;
 float maxMaximas[MAX_SAMPLES];
@@ -33,7 +31,6 @@ const char* redes[][2] = {
   { "Gnomos_2.4", "Edu@rd00" },
 };
 
-
 //CONF MQTT
 const char* mqtt_server = "192.168.15.24";
 const int mqtt_port = 1883;
@@ -41,19 +38,15 @@ const char* mqtt_id = "ESP32TESTE";
 const char* mqtt_user = "servbd";
 const char* mqtt_password = "Un1f3sp1";
 const char* controlTopic = "sensores/control";
-const char* statusSensoresTopic = "sensoresTeste/status";
-const char* statusESPTopic = "espTeste/status";
-const char* statusNetTopic = "conexoesTeste/status";
-const char* dataDhtTopic = "sensoresTeste/dht";
-const char* dataMlxTopic = "sensoresTeste/mlx";
+const char* statusSensoresTopic = "sensoresStatus/teste";
+const char* statusESPTopic = "espStatus/teste";
+const char* statusNetTopic = "conexoesStatus/teste";
+const char* dataDhtTopic = "sensoresDht/teste";
+const char* dataMlxTopic = "sensoresMlx/teste";
 
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-
-
-TaskHandle_t taskHandleDHT = NULL;
-TaskHandle_t taskHandleMLX = NULL;
 
 
 //BUFFER
@@ -65,11 +58,16 @@ struct Leitura {
   float v2;
 };
 
-std::vector<Leitura> bufferDHT;
-std::vector<Leitura> bufferMLX;
 
-unsigned long lastPublishTime = 0;
-const unsigned long MQTT_BATCH_INTERVAL = 60000;
+void taskLeituraDHT(void* parameter);
+void taskLeituraMLX(void* parameter);
+void publicarMQTT(bool publicarTudo = false);
+
+TaskHandle_t taskHandleDHT = NULL;
+TaskHandle_t taskHandleMLX = NULL;
+
+QueueHandle_t filaDHT;
+QueueHandle_t filaMLX;
 
 
 //CONTROLE COLETA
@@ -77,8 +75,12 @@ bool dhtEnabled = false;
 bool mlxEnabled = false;
 bool maxEnabled = false;
 bool collecting = false;
+bool publicarTudoFlag = false;
+
 unsigned long intervaloLeituraMs = 30000;
 unsigned long millisInicioColeta = 0;
+
+const int TAMANHO_BUFFER_CSV = 600;
 
 
 //FUNÇÃO CONECTAR WIFI
@@ -147,6 +149,7 @@ void reconnectToBrokerMqtt() {
 }
 
 
+// FUNÇÃO  FORMATAR HORÁRIO
 void horarioAtual(time_t epoch, char* destino) {
   struct tm timeinfo;
   if (!localtime_r(&epoch, &timeinfo)) {
@@ -194,11 +197,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
 
     if (dhtEnabled && taskHandleDHT == NULL) {
-      xTaskCreatePinnedToCore(taskLeituraDHT, "LeituraDHT", 10240, NULL, 1, &taskHandleDHT, 1);
+      xTaskCreatePinnedToCore(taskLeituraDHT, "LeituraDHT", 8192, NULL, 1, &taskHandleDHT, 0);
     }
 
     if (mlxEnabled && taskHandleMLX == NULL) {
-      xTaskCreatePinnedToCore(taskLeituraMLX, "LeituraMLX", 10240, NULL, 1, &taskHandleMLX, 1);
+      xTaskCreatePinnedToCore(taskLeituraMLX, "LeituraMLX", 8192, NULL, 1, &taskHandleMLX, 1);
     }
 
   } else if (message.indexOf("STOP") >= 0) {
@@ -206,23 +209,23 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     dhtEnabled = false;
     mlxEnabled = false;
     maxEnabled = false;
+    publicarTudoFlag = true;
 
-    if (!bufferDHT.empty() || !bufferMLX.empty()) {
-      publicarBufferMQTT();
+    publicarMQTT(true);
 
-      if (taskHandleDHT != NULL) {
-        vTaskDelete(taskHandleDHT);
-        taskHandleDHT = NULL;
-        Serial.println("[ESP32-TESTE-TASK]: TASK_DHT_ENCERRADA");
-        client.publish(statusESPTopic, "[ESP32-TESTE-TASK]: TASK_DHT_ENCERRADA");
-      }
 
-      if (taskHandleMLX != NULL) {
-        vTaskDelete(taskHandleMLX);
-        taskHandleMLX = NULL;
-        Serial.println("[ESP32-TESTE-TASK]: TASK_MLX_ENCERRADA");
-        client.publish(statusESPTopic, "[ESP32-TESTE-TASK]: TASK_MLX_ENCERRADA");
-      }
+    if (taskHandleDHT != NULL) {
+      vTaskDelete(taskHandleDHT);
+      taskHandleDHT = NULL;
+      Serial.println("[ESP32-TESTE-TASK]: TASK_DHT_ENCERRADA");
+      client.publish(statusESPTopic, "[ESP32-TESTE-TASK]: TASK_DHT_ENCERRADA");
+    }
+
+    if (taskHandleMLX != NULL) {
+      vTaskDelete(taskHandleMLX);
+      taskHandleMLX = NULL;
+      Serial.println("[ESP32-TESTE-TASK]: TASK_MLX_ENCERRADA");
+      client.publish(statusESPTopic, "[ESP32-TESTE-TASK]: TASK_MLX_ENCERRADA");
     }
   }
 }
@@ -230,6 +233,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 void taskLeituraDHT(void* parameter) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
+  
   for (;;) {
     if (collecting && dhtEnabled) {
       float temperatura = dht.readTemperature();
@@ -243,15 +247,11 @@ void taskLeituraDHT(void* parameter) {
       if (!isnan(temperatura) && !isnan(umidade)) {
         dado.v1 = temperatura;
         dado.v2 = umidade;
-        Serial.printf("[DHT22-TESTE]: Temperatura: %.1f°C Umidade: %.1f%%\n", temperatura, umidade);
       } else {
         dado.v1 = 0.0;
         dado.v2 = 0.0;
-        dht.begin();
-        Serial.println("[DHT22-TESTE]: ERROR_LEITURA");
-        client.publish(statusSensoresTopic, "[DHT22-TESTE]: ERROR_LEITURA");
       }
-      bufferDHT.push_back(dado);
+      xQueueSend(filaDHT, &dado, portMAX_DELAY);
     }
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(intervaloLeituraMs));
   }
@@ -260,6 +260,7 @@ void taskLeituraDHT(void* parameter) {
 
 void taskLeituraMLX(void* parameter) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
+  
   for (;;) {
     if (collecting && mlxEnabled) {
       float tempA = mlx.readAmbientTempC();
@@ -273,82 +274,121 @@ void taskLeituraMLX(void* parameter) {
       if (!isnan(tempA) && !isnan(tempIR)) {
         dado.v1 = tempA;
         dado.v2 = tempIR;
-        Serial.printf("[MLX90614-TESTE]: Temp-Amb: %.1f°C Temp-IR: %.1f°C\n", tempA, tempIR);
       } else {
         dado.v1 = 0.0;
         dado.v2 = 0.0;
-        mlx.begin();
-        Serial.println("[MLX90614-TESTE]: ERROR_LEITURA");
-        client.publish(statusSensoresTopic, "[MLX90614-TESTE]: ERROR_LEITURA");
       }
-      bufferMLX.push_back(dado);
-    }
+      xQueueSend(filaMLX, &dado, portMAX_DELAY);
+    } 
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(intervaloLeituraMs));
   }
 }
 
 
 void publicarBufferMQTT() {
-  const size_t LIMITE_BUFFER = 100;
-  const int LINHAS_POR_PUBLICACAO = 5;
-
-  if (bufferDHT.size() > LIMITE_BUFFER || bufferMLX.size() > LIMITE_BUFFER) {
-    Serial.printf("[MQTT-TESTE-BUFFER]: ERROR_BUFFER_LIMITE-MAX");
-    client.publish(statusESPTopic, "[MQTT-TESTE-BUFFER]: ERROR_BUFFER_LIMITE-MAX");
-  }
-
-  if (bufferDHT.empty() && bufferMLX.empty()) {
-    Serial.println("[MQTT-TESTE-BUFFER]: ERROR_BUFFER");
-    client.publish(statusESPTopic, "[MQTT-TESTE-BUFFER]: ERROR_BUFFER");
-    return;
-  }
+  const int MAX_LINHAS_POR_PUBLICACAO = publicarTudo ? 50 : 10;
+  Leitura dado;
+  bool dadosPublicados = false;
 
   // DHT
-  if (!bufferDHT.empty()) {
-    for (int i = 0; i < bufferDHT.size(); i += LINHAS_POR_PUBLICACAO) {
-      char csv[600];
-      csv[0] = '\0';
+  if (uxQueueMessagesWaiting(filaDHT) > 0) {
+    char csvDHT[TAMANHO_BUFFER_CSV] = "";
+    int contadorDHT = 0;
+    size_t tamanhoAtualDHT = 0;
 
-      for (int j = i; j < i + LINHAS_POR_PUBLICACAO && j < bufferDHT.size(); j++) {
-        Leitura& dado = bufferDHT[j];
-        char linha[60];
-        snprintf(linha, sizeof(linha), "%s,%lu,%.1f,%.1f\n", dado.horario, dado.millisRelativo, dado.v1, dado.v2);
-        strlcat(csv, linha, sizeof(csv));
-      }
+    while (contadorDHT < MAX_LINHAS_POR_PUBLICACAO && xQueueReceive(filaDHT, &dado, 0) == pdTRUE) {
+      char linha[60];
+      int escrito = snprintf(linha, sizeof(linha), "%s,%lu,%.1f,%.1f\n",
+                             dado.horario, dado.millisRelativo, dado.v1, dado.v2);
 
-      if (client.publish(dataDhtTopic, csv)) {
-        Serial.println("[MQTT-TESTE]: DHT22-TESTE_PUBLICADO");
+      if (tamanhoAtualDHT + escrito < sizeof(csvDHT) - 1) {
+        strcat(csvDHT + tamanhoAtualDHT, linha);
+        tamanhoAtualDHT += escrito;
+        contadorDHT++;
       } else {
-        Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_DHT22-TESTE");
-        client.publish(statusESPTopic, "[MQTT-TESTE]: ERROR_PUBLICAR_DHT22-TESTE");
+        xQueueSendToFront(filaDHT, &dado, 0);
+        Serial.println("[ERRO] Buffer DHT cheio");
+        break;
       }
     }
-    bufferDHT.clear();
-    bufferDHT.shrink_to_fit();
+
+    if (strlen(csvDHT) > 0) {
+      if (!client.connected()) reconnectToBrokerMqtt();
+      if (client.publish(dataDhtTopic, csvDHT, false)) {
+        Serial.println("[MQTT-TESTE]: DHT22-TESTE_PUBLICADO");
+        dadosPublicados = true;
+      } else {
+        Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_DHT22-TESTE");
+      }
+    }
   }
 
   // MLX
-  if (!bufferMLX.empty()) {
-    for (int i = 0; i < bufferMLX.size(); i += LINHAS_POR_PUBLICACAO) {
-      char csv[600];
-      csv[0] = '\0';
+  if (uxQueueMessagesWaiting(filaMLX) > 0) {
+    char csvMLX[TAMANHO_BUFFER_CSV] = "";
+    int contadorMLX = 0;
+    size_t tamanhoAtualMLX = 0;
 
-      for (int j = i; j < i + LINHAS_POR_PUBLICACAO && j < bufferMLX.size(); j++) {
-        Leitura& dado = bufferMLX[j];
-        char linha[60];
-        snprintf(linha, sizeof(linha), "%s,%lu,%.1f,%.1f\n", dado.horario, dado.millisRelativo, dado.v1, dado.v2);
-        strlcat(csv, linha, sizeof(csv));
-      }
+    while (contadorMLX < MAX_LINHAS_POR_PUBLICACAO && xQueueReceive(filaMLX, &dado, 0) == pdTRUE) {
+      char linha[60];
+      int escrito = snprintf(linha, sizeof(linha), "%s,%lu,%.1f,%.1f\n",
+                             dado.horario, dado.millisRelativo, dado.v1, dado.v2);
 
-      if (client.publish(dataMlxTopic, csv)) {
-        Serial.println("[MQTT-TESTE]: MLX90614-TESTE_PUBLICADO");
+      if (tamanhoAtualMLX + escrito < sizeof(csvMLX) - 1) {
+        strcat(csvMLX + tamanhoAtualMLX, linha);
+        tamanhoAtualMLX += escrito;
+        contadorMLX++;
       } else {
-        Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_MLX90614-TESTE");
-        client.publish(statusSensoresTopic, "[MQTT-TESTE]: ERROR_PUBLICAR_MLX90614-TESTE");
+        xQueueSendToFront(filaMLX, &dado, 0);
+        Serial.println("[ERRO] Buffer MLX cheio");
+        break;
       }
     }
-    bufferMLX.clear();
-    bufferMLX.shrink_to_fit();
+
+    if (strlen(csvMLX) > 0) {
+      if (!client.connected()) reconnectToBrokerMqtt();
+      if (client.publish(dataMlxTopic, csvMLX, false)) {
+        Serial.println("[MQTT-TESTE]: MLX90614-TESTE_PUBLICADO");
+        dadosPublicados = true;
+      } else {
+        Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_MLX90614-TESTE");
+      }
+    }
+  }
+
+  if (publicarTudo) {
+    while (xQueueReceive(filaDHT, &dado, 0) == pdTRUE) {
+      // Fila DHT esvaziada
+    }
+    while (xQueueReceive(filaMLX, &dado, 0) == pdTRUE) {
+      // Fila MLX esvaziada
+    }
+  }
+  vTaskDelay(1);
+}
+
+
+void taskPublicacaoMQTT(void* parameter) {
+  while (1) {
+    UBaseType_t stack = uxTaskGetStackHighWaterMark(NULL);
+    Serial.printf("Stack Publicacao: %u\n", stack);
+
+    publicarMQTT(publicarTudoFlag);
+
+    if (publicarTudoFlag) {
+      publicarTudoFlag = false;
+    }
+
+    static int logCounter = 0;
+    if (logCounter++ > 10) {
+      Serial.printf("Stack Publicacao: %u\n", stack);
+      Serial.printf("Fila DHT: %d | MLX: %d\n",
+                    uxQueueMessagesWaiting(filaDHT),
+                    uxQueueMessagesWaiting(filaMLX));
+      logCounter = 0;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(5000));
   }
 }
 
@@ -359,14 +399,15 @@ void setup() {
   Wire.begin(27, 14);
   mlx.begin();
 
-  analogReadResolution(12);                    // ADC de 12 bits (0-4095)
-  analogSetPinAttenuation(MAX_PIN, ADC_11db);  // Atenuação para 3.3V
+  analogReadResolution(12);
+  analogSetPinAttenuation(MAX_PIN, ADC_11db);
 
   WiFi.mode(WIFI_STA);
   connectToWiFi();
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(mqttCallback);
+  client.setBufferSize(600);
 
   configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
   Serial.println("Aguardando sincronização NTP...");
@@ -376,10 +417,15 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-
   Serial.println("\nNTP sincronizado!");
 
   Serial.println("\nSISTEMA INICIANDO...");
+
+  filaDHT = xQueueCreate(50, sizeof(Leitura));
+  filaMLX = xQueueCreate(50, sizeof(Leitura));
+
+  xTaskCreatePinnedToCore(
+    taskPublicacaoMQTT, "taskPublicacao", 10240, NULL, 0, NULL, 0);
 }
 
 
@@ -391,15 +437,8 @@ void loop() {
   }
   client.loop();
 
-  //PUBLICAÇÃO
-  unsigned long agora = millis();
-  if (collecting && (!bufferDHT.empty() || !bufferMLX.empty())) {
-    if (agora - lastPublishTime >= MQTT_BATCH_INTERVAL) {
-      lastPublishTime = agora;
-      publicarBufferMQTT();
-    }
-  }
 
+  //SINAL DE VIDA
   static unsigned long lastHeartbeat = 0;
   if (millis() - lastHeartbeat >= 10000) {
     time_t horaAtual = time(nullptr);
@@ -407,7 +446,7 @@ void loop() {
     horarioAtual(horaAtual, hora);
     lastHeartbeat = millis();
     char payload[80];
-    snprintf(payload, sizeof(payload), "[MQTT-TESTE]: OK | %s | %lus", hora, millis() / 1000);
+    snprintf(payload, sizeof(payload), "[MQTT-TESTER]: OK | %s | %lus", hora, millis() / 1000);
     client.publish(statusESPTopic, payload);
   }
 }

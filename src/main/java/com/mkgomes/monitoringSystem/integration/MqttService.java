@@ -18,6 +18,7 @@ public class MqttService {
         String topico = "sensores/control";
 
         try {
+            System.out.printf("[MQTT-BACK-END] Tópico: %s | Comando: %s%n", topico, comando);
             MqttMessage message = new MqttMessage(comando.getBytes());
             message.setQos(1);
             mqttClient.publish(topico, message);
