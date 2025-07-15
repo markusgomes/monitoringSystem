@@ -51,8 +51,6 @@ PubSubClient client(espClient);
 
 //BUFFER
 struct Leitura {
-  time_t epoch;
-  char horario[9];
   unsigned long millisRelativo;
   float v1;
   float v2;
@@ -149,62 +147,53 @@ void reconnectToBrokerMqtt() {
 }
 
 
-// FUNÇÃO  FORMATAR HORÁRIO
-void horarioAtual(time_t epoch, char* destino) {
-  struct tm timeinfo;
-  if (!localtime_r(&epoch, &timeinfo)) {
-    strcpy(destino, "--:--:--");
-    return;
-  }
-  strftime(destino, 9, "%H:%M:%S", &timeinfo);
-}
-
-
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  String message;
-  for (unsigned int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
+  char mensagem[100];
+  size_t maxLen = sizeof(mensagem) - 1;
+  if (length > maxLen) length = maxLen;
 
-  message.toUpperCase();
+  memcpy(mensagem, payload, length);
+  mensagem[length] = '\0';
+  strupr(mensagem);
 
-  if (message.indexOf("START") >= 0) {
+  if (strstr(mensagem, "START") != NULL) {
     dhtEnabled = false;
     mlxEnabled = false;
     maxEnabled = false;
     collecting = true;
     millisInicioColeta = millis();
 
-    if (message.indexOf("DHT") >= 0) {
+    if (strstr(mensagem, "DHT") != NULL) {
       dhtEnabled = true;
     }
 
-    if (message.indexOf("MLX") >= 0) {
+    if (strstr(mensagem, "MLX") != NULL) {
       mlxEnabled = true;
     }
 
-    if (message.indexOf("MAX") >= 0) {
+    if (strstr(mensagem, "MAX") != NULL) {
       maxEnabled = true;
     }
 
-    int idx = message.lastIndexOf(",");
-    if (idx != -1) {
-      int valor = message.substring(idx + 1).toInt();
+    char* ultimaVirgula = strrchr(mensagem, ',');
+    if (ultimaVirgula != NULL) {
+      int valor = atoi(ultimaVirgula + 1);
       if (valor >= 1 && valor <= 60) {
         intervaloLeituraMs = 60000 / valor;
-        Serial.printf("[CONFIG] Intervalo leitura: %lu ms\n", intervaloLeituraMs);
-      }
+      } 
     }
 
     if (dhtEnabled && taskHandleDHT == NULL) {
-      xTaskCreatePinnedToCore(taskLeituraDHT, "LeituraDHT", 8192, NULL, 1, &taskHandleDHT, 0);
+      xTaskCreatePinnedToCore(taskLeituraDHT, "LeituraDHT", 10240, NULL, 2, &taskHandleDHT, 1);
     }
 
     if (mlxEnabled && taskHandleMLX == NULL) {
-      xTaskCreatePinnedToCore(taskLeituraMLX, "LeituraMLX", 8192, NULL, 1, &taskHandleMLX, 1);
+      xTaskCreatePinnedToCore(taskLeituraMLX, "LeituraMLX", 10240, NULL, 1, &taskHandleMLX, 0);
     }
 
-  } else if (message.indexOf("STOP") >= 0) {
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+  } else if (strstr(mensagem, "STOP") != NULL) {
     collecting = false;
     dhtEnabled = false;
     mlxEnabled = false;
@@ -240,8 +229,6 @@ void taskLeituraDHT(void* parameter) {
       float umidade = dht.readHumidity();
 
       Leitura dado;
-      dado.epoch = time(nullptr);
-      horarioAtual(dado.epoch, dado.horario);
       dado.millisRelativo = (millis() - millisInicioColeta) / 1000;
 
       if (!isnan(temperatura) && !isnan(umidade)) {
@@ -267,8 +254,6 @@ void taskLeituraMLX(void* parameter) {
       float tempIR = mlx.readObjectTempC();
 
       Leitura dado;
-      dado.epoch = time(nullptr);
-      horarioAtual(dado.epoch, dado.horario);
       dado.millisRelativo = (millis() - millisInicioColeta) / 1000;
 
       if (!isnan(tempA) && !isnan(tempIR)) {
@@ -286,70 +271,63 @@ void taskLeituraMLX(void* parameter) {
 
 
 void publicarBufferMQTT() {
-  const int MAX_LINHAS_POR_PUBLICACAO = publicarTudo ? 50 : 10;
+  const int MAX_LINHAS_POR_PUBLICACAO = publicarTudo ? 50 : 3;
   Leitura dado;
-  bool dadosPublicados = false;
 
   // DHT
   if (uxQueueMessagesWaiting(filaDHT) > 0) {
     char csvDHT[TAMANHO_BUFFER_CSV] = "";
-    int contadorDHT = 0;
     size_t tamanhoAtualDHT = 0;
+    int contadorDHT = 0;
 
     while (contadorDHT < MAX_LINHAS_POR_PUBLICACAO && xQueueReceive(filaDHT, &dado, 0) == pdTRUE) {
-      char linha[60];
-      int escrito = snprintf(linha, sizeof(linha), "%s,%lu,%.1f,%.1f\n",
-                             dado.horario, dado.millisRelativo, dado.v1, dado.v2);
+      int escrito = snprintf(csvDHT + tamanhoAtualDHT, sizeof(csvDHT) - tamanhoAtualDHT,
+                             "%lu,%.1f,%.1f\n", dado.millisRelativo, dado.v1, dado.v2);
 
-      if (tamanhoAtualDHT + escrito < sizeof(csvDHT) - 1) {
-        strcat(csvDHT + tamanhoAtualDHT, linha);
-        tamanhoAtualDHT += escrito;
-        contadorDHT++;
-      } else {
+      if (escrito < 0 || (tamanhoAtualDHT + escrito >= sizeof(csvDHT))) {
         xQueueSendToFront(filaDHT, &dado, 0);
-        Serial.println("[ERRO] Buffer DHT cheio");
         break;
       }
+
+      tamanhoAtualDHT += escrito;
+      contadorDHT++;
     }
 
-    if (strlen(csvDHT) > 0) {
+    if (tamanhoAtualDHT > 0) {
       if (!client.connected()) reconnectToBrokerMqtt();
       if (client.publish(dataDhtTopic, csvDHT, false)) {
         Serial.println("[MQTT-TESTE]: DHT22-TESTE_PUBLICADO");
-        dadosPublicados = true;
       } else {
         Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_DHT22-TESTE");
       }
     }
   }
 
+
   // MLX
   if (uxQueueMessagesWaiting(filaMLX) > 0) {
     char csvMLX[TAMANHO_BUFFER_CSV] = "";
-    int contadorMLX = 0;
     size_t tamanhoAtualMLX = 0;
+    int contadorMLX = 0;
 
     while (contadorMLX < MAX_LINHAS_POR_PUBLICACAO && xQueueReceive(filaMLX, &dado, 0) == pdTRUE) {
-      char linha[60];
-      int escrito = snprintf(linha, sizeof(linha), "%s,%lu,%.1f,%.1f\n",
-                             dado.horario, dado.millisRelativo, dado.v1, dado.v2);
+      int escrito = snprintf(csvMLX + tamanhoAtualMLX, sizeof(csvMLX) - tamanhoAtualMLX,
+                             "%lu,%.1f,%.1f\n", dado.millisRelativo, dado.v1, dado.v2);
 
-      if (tamanhoAtualMLX + escrito < sizeof(csvMLX) - 1) {
-        strcat(csvMLX + tamanhoAtualMLX, linha);
-        tamanhoAtualMLX += escrito;
-        contadorMLX++;
-      } else {
+      if (escrito < 0 || (tamanhoAtualMLX + escrito >= sizeof(csvMLX))) {
+        Serial.println("[ERRO] Buffer MLX cheio ou corrompido");
         xQueueSendToFront(filaMLX, &dado, 0);
-        Serial.println("[ERRO] Buffer MLX cheio");
         break;
       }
+
+      tamanhoAtualMLX += escrito;
+      contadorMLX++;
     }
 
-    if (strlen(csvMLX) > 0) {
+    if (tamanhoAtualMLX > 0) {
       if (!client.connected()) reconnectToBrokerMqtt();
       if (client.publish(dataMlxTopic, csvMLX, false)) {
         Serial.println("[MQTT-TESTE]: MLX90614-TESTE_PUBLICADO");
-        dadosPublicados = true;
       } else {
         Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_MLX90614-TESTE");
       }
@@ -364,28 +342,17 @@ void publicarBufferMQTT() {
       // Fila MLX esvaziada
     }
   }
-  vTaskDelay(1);
+  vTaskDelay(10);
 }
 
 
 void taskPublicacaoMQTT(void* parameter) {
   while (1) {
-    UBaseType_t stack = uxTaskGetStackHighWaterMark(NULL);
-    Serial.printf("Stack Publicacao: %u\n", stack);
 
     publicarMQTT(publicarTudoFlag);
 
     if (publicarTudoFlag) {
       publicarTudoFlag = false;
-    }
-
-    static int logCounter = 0;
-    if (logCounter++ > 10) {
-      Serial.printf("Stack Publicacao: %u\n", stack);
-      Serial.printf("Fila DHT: %d | MLX: %d\n",
-                    uxQueueMessagesWaiting(filaDHT),
-                    uxQueueMessagesWaiting(filaMLX));
-      logCounter = 0;
     }
 
     vTaskDelay(pdMS_TO_TICKS(5000));
@@ -409,23 +376,13 @@ void setup() {
   client.setCallback(mqttCallback);
   client.setBufferSize(600);
 
-  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-  Serial.println("Aguardando sincronização NTP...");
-
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nNTP sincronizado!");
-
   Serial.println("\nSISTEMA INICIANDO...");
 
   filaDHT = xQueueCreate(50, sizeof(Leitura));
   filaMLX = xQueueCreate(50, sizeof(Leitura));
 
   xTaskCreatePinnedToCore(
-    taskPublicacaoMQTT, "taskPublicacao", 10240, NULL, 0, NULL, 0);
+    taskPublicacaoMQTT, "taskPublicacao", 10240, NULL, 1, NULL, 1);
 }
 
 
@@ -441,12 +398,9 @@ void loop() {
   //SINAL DE VIDA
   static unsigned long lastHeartbeat = 0;
   if (millis() - lastHeartbeat >= 10000) {
-    time_t horaAtual = time(nullptr);
-    char hora[9];
-    horarioAtual(horaAtual, hora);
     lastHeartbeat = millis();
     char payload[80];
-    snprintf(payload, sizeof(payload), "[MQTT-TESTER]: OK | %s | %lus", hora, millis() / 1000);
+    snprintf(payload, sizeof(payload), "[MQTT-TESTE]: OK | %lus", millis() / 1000);
     client.publish(statusESPTopic, payload);
   }
 }

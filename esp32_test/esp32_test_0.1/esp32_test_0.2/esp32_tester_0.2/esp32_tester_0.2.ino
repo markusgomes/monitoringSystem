@@ -147,52 +147,47 @@ void reconnectToBrokerMqtt() {
 }
 
 
-// FUNÇÃO  FORMATAR HORÁRIO
-/*void horarioAtual(time_t epoch, char* destino) {
-  Serial.printf("[horarioAtual] Rodando no core: %d\n", xPortGetCoreID());
-  struct tm timeinfo;
-  if (!localtime_r(&epoch, &timeinfo)) {
-    strcpy(destino, "--:--:--");
-    return;
-  }
-  strftime(destino, 9, "%H:%M:%S", &timeinfo);
-}*/
-
-
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.printf("[mqttCallback] Rodando no core: %d\n", xPortGetCoreID());
-  String message;
-  for (unsigned int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
 
-  message.toUpperCase();
+  char mensagem[100];
+  size_t maxLen = sizeof(mensagem) - 1;
+  if (length > maxLen) length = maxLen;
 
-  if (message.indexOf("START") >= 0) {
+  memcpy(mensagem, payload, length);
+  mensagem[length] = '\0';
+  strupr(mensagem);
+
+  Serial.printf("[MQTT-COMANDO]: %s\n", mensagem);
+
+
+  if (strstr(mensagem, "START") != NULL) {
     dhtEnabled = false;
     mlxEnabled = false;
     maxEnabled = false;
     collecting = true;
     millisInicioColeta = millis();
 
-    if (message.indexOf("DHT") >= 0) {
+    if (strstr(mensagem, "DHT") != NULL) {
       dhtEnabled = true;
     }
 
-    if (message.indexOf("MLX") >= 0) {
+    if (strstr(mensagem, "MLX") != NULL) {
       mlxEnabled = true;
     }
 
-    if (message.indexOf("MAX") >= 0) {
+    if (strstr(mensagem, "MAX") != NULL) {
       maxEnabled = true;
     }
 
-    int idx = message.lastIndexOf(",");
-    if (idx != -1) {
-      int valor = message.substring(idx + 1).toInt();
+    char* ultimaVirgula = strrchr(mensagem, ',');
+    if (ultimaVirgula != NULL) {
+      int valor = atoi(ultimaVirgula + 1);
       if (valor >= 1 && valor <= 60) {
         intervaloLeituraMs = 60000 / valor;
         Serial.printf("[CONFIG] Intervalo leitura: %lu ms\n", intervaloLeituraMs);
+      } else {
+        Serial.println("[CONFIG] Valor de intervalo inválido. Ignorado.");
       }
     }
 
@@ -206,7 +201,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
     vTaskDelay(pdMS_TO_TICKS(50));
 
-  } else if (message.indexOf("STOP") >= 0) {
+  } else if (strstr(mensagem, "STOP") != NULL) {
     collecting = false;
     dhtEnabled = false;
     mlxEnabled = false;
@@ -299,37 +294,33 @@ void taskLeituraMLX(void* parameter) {
 
 void publicarMQTT(bool publicarTudo) {
   Serial.printf("[publicarMQTT] Rodando no core: %d\n", xPortGetCoreID());
-  const int MAX_LINHAS_POR_PUBLICACAO = publicarTudo ? 50 : 5;
+  const int MAX_LINHAS_POR_PUBLICACAO = publicarTudo ? 50 : 3;
   Leitura dado;
-  bool dadosPublicados = false;
 
   // DHT
   if (uxQueueMessagesWaiting(filaDHT) > 0) {
     char csvDHT[TAMANHO_BUFFER_CSV] = "";
-    int contadorDHT = 0;
     size_t tamanhoAtualDHT = 0;
+    int contadorDHT = 0;
 
     while (contadorDHT < MAX_LINHAS_POR_PUBLICACAO && xQueueReceive(filaDHT, &dado, 0) == pdTRUE) {
-      char linha[100];
-      int escrito = snprintf(linha, sizeof(linha), "%lu,%.1f,%.1f\n",
-                             dado.millisRelativo, dado.v1, dado.v2);
+      int escrito = snprintf(csvDHT + tamanhoAtualDHT, sizeof(csvDHT) - tamanhoAtualDHT,
+                             "%lu,%.1f,%.1f\n", dado.millisRelativo, dado.v1, dado.v2);
 
-      if (tamanhoAtualDHT + escrito < sizeof(csvDHT) - 1) {
-        strcat(csvDHT + tamanhoAtualDHT, linha);
-        tamanhoAtualDHT += escrito;
-        contadorDHT++;
-      } else {
+      if (escrito < 0 || (tamanhoAtualDHT + escrito >= sizeof(csvDHT))) {
+        Serial.println("[ERRO] Buffer DHT cheio ou corrompido");
         xQueueSendToFront(filaDHT, &dado, 0);
-        Serial.println("[ERRO] Buffer DHT cheio");
         break;
       }
+
+      tamanhoAtualDHT += escrito;
+      contadorDHT++;
     }
 
-    if (strlen(csvDHT) > 0) {
+    if (tamanhoAtualDHT > 0) {
       if (!client.connected()) reconnectToBrokerMqtt();
       if (client.publish(dataDhtTopic, csvDHT, false)) {
         Serial.println("[MQTT-TESTER]: DHT22-TESTER_PUBLICADO");
-        dadosPublicados = true;
       } else {
         Serial.println("[MQTT-TESTER]: ERROR_PUBLICAR_DHT22-TESTER");
       }
@@ -339,30 +330,27 @@ void publicarMQTT(bool publicarTudo) {
   // MLX
   if (uxQueueMessagesWaiting(filaMLX) > 0) {
     char csvMLX[TAMANHO_BUFFER_CSV] = "";
-    int contadorMLX = 0;
     size_t tamanhoAtualMLX = 0;
+    int contadorMLX = 0;
 
     while (contadorMLX < MAX_LINHAS_POR_PUBLICACAO && xQueueReceive(filaMLX, &dado, 0) == pdTRUE) {
-      char linha[100];
-      int escrito = snprintf(linha, sizeof(linha), "%lu,%.1f,%.1f\n",
-                             dado.millisRelativo, dado.v1, dado.v2);
+      int escrito = snprintf(csvMLX + tamanhoAtualMLX, sizeof(csvMLX) - tamanhoAtualMLX,
+                             "%lu,%.1f,%.1f\n", dado.millisRelativo, dado.v1, dado.v2);
 
-      if (tamanhoAtualMLX + escrito < sizeof(csvMLX) - 1) {
-        strcat(csvMLX + tamanhoAtualMLX, linha);
-        tamanhoAtualMLX += escrito;
-        contadorMLX++;
-      } else {
+      if (escrito < 0 || (tamanhoAtualMLX + escrito >= sizeof(csvMLX))) {
+        Serial.println("[ERRO] Buffer MLX cheio ou corrompido");
         xQueueSendToFront(filaMLX, &dado, 0);
-        Serial.println("[ERRO] Buffer MLX cheio");
         break;
       }
+
+      tamanhoAtualMLX += escrito;
+      contadorMLX++;
     }
 
-    if (strlen(csvMLX) > 0) {
+    if (tamanhoAtualMLX > 0) {
       if (!client.connected()) reconnectToBrokerMqtt();
       if (client.publish(dataMlxTopic, csvMLX, false)) {
         Serial.println("[MQTT-TESTER]: MLX90614-TESTER_PUBLICADO");
-        dadosPublicados = true;
       } else {
         Serial.println("[MQTT-TESTER]: ERROR_PUBLICAR_MLX90614-TESTER");
       }
@@ -406,6 +394,8 @@ void taskPublicacaoMQTT(void* parameter) {
       heap_counter = 0;
       Serial.printf("Heap livre: %d bytes\n", esp_get_free_heap_size());
       Serial.printf("Menor heap livre: %d bytes\n", esp_get_minimum_free_heap_size());
+      Serial.printf("Heap SPI: %d\n", ESP.getMaxAllocHeap());
+      Serial.printf("Min Stack TaskPublicacao: %d\n", uxTaskGetStackHighWaterMark(NULL));
     }
 
     vTaskDelay(pdMS_TO_TICKS(5000));
@@ -415,6 +405,25 @@ void taskPublicacaoMQTT(void* parameter) {
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
+
+  esp_reset_reason_t motivo = esp_reset_reason();
+  Serial.printf("\nMotivo do último reset: %d - ", motivo);
+
+  switch (motivo) {
+    case ESP_RST_POWERON: Serial.println("POWER ON"); break;
+    case ESP_RST_EXT: Serial.println("EXTERNAL RESET"); break;
+    case ESP_RST_SW: Serial.println("SOFTWARE RESET"); break;
+    case ESP_RST_PANIC: Serial.println("PANIC / EXCEPTION"); break;
+    case ESP_RST_INT_WDT: Serial.println("INTERNAL WATCHDOG"); break;
+    case ESP_RST_TASK_WDT: Serial.println("TASK WATCHDOG"); break;
+    case ESP_RST_WDT: Serial.println("WATCHDOG RESET"); break;
+    case ESP_RST_DEEPSLEEP: Serial.println("DEEP SLEEP WAKE"); break;
+    case ESP_RST_BROWNOUT: Serial.println("BROWNOUT (queda de tensão)"); break;
+    case ESP_RST_SDIO: Serial.println("SDIO RESET"); break;
+    default: Serial.println("DESCONHECIDO"); break;
+  }
+
   dht.begin();
   Wire.begin(27, 14);
   mlx.begin();
@@ -427,7 +436,7 @@ void setup() {
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(mqttCallback);
-  client.setBufferSize(600);
+  client.setBufferSize(1024);
 
   /*configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
   Serial.println("Aguardando sincronização NTP...");
@@ -464,12 +473,21 @@ void loop() {
   if (millis() - lastHeartbeat >= 10000) {
     /*time_t horaAtual = time(nullptr);*/
     /*char hora[9];*/
-   /* horarioAtual(horaAtual, hora);*/
+    /* horarioAtual(horaAtual, hora);*/
     lastHeartbeat = millis();
     char payload[80];
     snprintf(payload, sizeof(payload), "[MQTT-TESTER]: OK | %lus", millis() / 1000);
     client.publish(statusESPTopic, payload);
-
-    
   }
 }
+
+// FUNÇÃO  FORMATAR HORÁRIO
+/*void horarioAtual(time_t epoch, char* destino) {
+  Serial.printf("[horarioAtual] Rodando no core: %d\n", xPortGetCoreID());
+  struct tm timeinfo;
+  if (!localtime_r(&epoch, &timeinfo)) {
+    strcpy(destino, "--:--:--");
+    return;
+  }
+  strftime(destino, 9, "%H:%M:%S", &timeinfo);
+}*/
