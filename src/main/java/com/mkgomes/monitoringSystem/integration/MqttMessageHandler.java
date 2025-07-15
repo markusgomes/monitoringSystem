@@ -61,7 +61,7 @@ public class MqttMessageHandler {
 
                 for (String linha : linhas) {
                     String[] partes = linha.trim().split(",");
-                    if (partes.length < 4)
+                    if (partes.length < 3)
                         continue;
 
                     try {
@@ -92,7 +92,7 @@ public class MqttMessageHandler {
 
                 for (String linha : linhas) {
                     String[] partes = linha.trim().split(",");
-                    if (partes.length < 4)
+                    if (partes.length < 3)
                         continue;
 
                     try {

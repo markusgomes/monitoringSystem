@@ -270,7 +270,7 @@ void taskLeituraMLX(void* parameter) {
 }
 
 
-void publicarBufferMQTT() {
+void publicarMQTT(bool publicarTudo) {
   const int MAX_LINHAS_POR_PUBLICACAO = publicarTudo ? 50 : 3;
   Leitura dado;
 
