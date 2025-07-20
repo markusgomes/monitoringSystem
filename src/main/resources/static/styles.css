@@ -1,73 +1,50 @@
-/* Reset e base */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: Arial, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .app-container {
+  height: 100%;
+  width: 100%;
   display: grid;
-  grid-template-areas:
-    "form-group realtime-section"
-    "area3 area4";
-  grid-template-columns: 1fr 1fr; 
-  grid-template-rows: 40% 60%; 
-  gap: 1rem; /* espaçamento entre os elementos */
-}
-
-body {
-  padding: 20px;
-  background-color: #f9f9f9;
-  color: #333;
-}
-
-/* Títulos */
-h1 {
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-h2, h3, h4 {
-  margin-bottom: 10px;
-}
-
-/* Formulário */
-form {
-  background: #ffffff;
-  padding: 20px;
-  border-radius: 10px;
-  margin-bottom: 30px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-/* Container para sensores, contexto e temperatura */
-.sensors-container,
-.context-container,
-.container-temperature,
-.stopwatch-container {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.sensors-container {
-  grid-template-columns: 1fr;
-}
-
-.context-container {
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 40% 60%;
 }
 
-.container-temperature,
-.stopwatch-container {
-  grid-template-columns: 1fr auto;
-  align-items: center;
+
+.form-container {
+  grid-area: form;
+  display: grid;
 }
+
+.bloc-btns {
+  display: flex;
+
+}
+
+.realtime-section {
+  grid-area: realtime;
+  background: #f8d7da;
+  border: 2px solid #000;
+}
+
+.graph-section {
+  grid-area: graph;
+  background: #f8d7da;
+  border: 2px solid #000;
+}
+
+
+
+
 
 /* Botões */
 button {
@@ -99,43 +76,3 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Sessão principal com grid */
-.realtime-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 30px;
-}
-
-/* Container de dados e gráfico */
-.dataNow-container, .graph-container {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-/* Blocos das caixas de teste/controle */
-.container-data {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-top: 10px;
-}
-
-.container-teste,
-.container-controle {
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-}
-
-.container-teste h4,
-.container-controle h4 {
-  margin-bottom: 5px;
-}
-
-/* Gráfico */
-.graph-container canvas {
-  width: 100% !important;
-  height: 300px !important;
-}

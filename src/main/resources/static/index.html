@@ -12,94 +12,98 @@
 
     <main class="app-container">
 
-    <h1>Painel de Controle</h1>
+        <h1>Painel de Controle</h1>
 
-    <form id="cycleForm">
+        <form class="form-container">
 
-        <div class="form-group">
-            <h2>Sensores:</h2>
+            <div class="bloc-sensors">
+                <h2>Sensores:</h2>
 
-            <div class="sensors-container">
-                <label for="input_dht">
-                    <input type="checkbox" id="input_dht" name="sensors" value="dht">
-                    Dht22 - Temperatura (ºc) e Umidade (%)</label>
+                <div class="sensors-container">
+                    <label for="input_dht">
+                        <input type="checkbox" id="input_dht" name="sensors" value="dht">
+                        Dht22 - Temperatura (ºc) e Umidade (%)</label>
 
-                <label for="input_mlx">
-                    <input type="checkbox" id="input_mlx" name="sensors" value="mlx">
-                    MLX90614 - Temperatura IR (ºc) e Temperatura (ºc)</label>
+                    <label for="input_mlx">
+                        <input type="checkbox" id="input_mlx" name="sensors" value="mlx">
+                        MLX90614 - Temperatura IR (ºc) e Temperatura (ºc)</label>
 
-                <label for="input_max">
-                    <input type="checkbox" id="input_max" name="sensors" value="max">
-                    Max9814 - Decibelímetro (dBA) </label>
+                    <label for="input_max">
+                        <input type="checkbox" id="input_max" name="sensors" value="max">
+                        Max9814 - Decibelímetro (dBA) </label>
+                </div>
             </div>
-        </div>
 
-        <div class="form-group">
+            <div class="bloc-text">
 
-            <div class="context-container">
-                <label for="amostra">Amostra:</label>
+                <div class="context-container">
+                    <label for="amostra">Amostra:</label>
                     <input type="text" id="amostra" name="amostra" required>
-                    
-                <label for="description">Descrição:</label>
+
+                    <label for="description">Descrição:</label>
                     <input type="text" id="description" name="description">
+                </div>
             </div>
-        </div>
 
-        <div class="form-cyclo">
+            <div class="bloc-timer">
 
-            <div class="container-temperature">
-                <label for="temperatura">Temperatura:</label>
+                <div class="container-temperature">
+                    <label for="temperatura">Temperatura:</label>
                     <input type="number" id="temperatura" name="temperature" min="10" max="60" required>
-            ºc</div>
+                    ºc
+                </div>
 
-            <div class="stopwatch-container">
-                <label for="duracao">Duração (min):</label>
+                <div class="stopwatch-container">
+                    <label for="duracao">Duração (min):</label>
                     <input type="number" id="duracao" name="duracao" min="1" max="9999" required>
                     <span id="timerDisplay" hidden="hidden">00:00</span>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <button type="submit" class="btn-start">Iniciar Coleta</button>
-            <button type="button" class="btn-stop">Encerrar Coleta</button>
-            <button type="button" class="btn-download" id="btnDownload" onclick="downloadCSV()" disabled
-                style="opacity: 0.5;">DOWNLOAD .CSV</button>
-        </div>
-    </form>
-    
-    <section class="realtime-section">
-
-        <div class="dataNow-container">
-            <h3>Últimos Valores Capturados</h3>
-
-            <div class="container-data">
-                <div class="container-teste">
-                    <h4>Caixa Teste</h4>
-                    <div><strong>DHT-U:</strong> <span id="dht-u_teste">--</span> %</div>
-                    <div><strong>DHT-T:</strong> <span id="dht-t_teste">--</span> °C</div>
-                    <div><strong>MLX-A:</strong> <span id="mlx-a_teste">--</span> °C</div>
-                    <div><strong>MLX-IR:</strong> <span id="mlx-ir_teste">--</span> °C</div>
-                </div>
-
-                <div class="container-controle">
-                    <h4>Caixa Controle</h4>
-                    <div><strong>DHT-U:</strong> <span id="dht-u_controle">--</span> %</div>
-                    <div><strong>DHT-T:</strong> <span id="dht-t_controle">--</span> °C</div>
-                    <div><strong>MLX-A:</strong> <span id="mlx-a_controle">--</span> °C</div>
-                    <div><strong>MLX-IR:</strong> <span id="mlx-ir_controle">--</span> °C</div>
                 </div>
             </div>
-        
-            <button onclick="temperaturesNow()">Atualizar Dados</button>
-        </div>
 
-        <div class="graph-container">
+            <div class="bloc-btns">
+                <button type="submit" class="btn-start">Iniciar Coleta</button>
+                <button type="button" class="btn-stop">Encerrar Coleta</button>
+                <button type="button" class="btn-download" id="btnDownload" onclick="downloadCSV()" disabled
+                    style="opacity: 0.5;">DOWNLOAD .CSV</button>
+            </div>
+        </form>
+
+        <section class="realtime-section">
+
+            <div class="dataNow-container">
+                <h3>Últimos Valores Capturados</h3>
+
+                <div class="container-data">
+                    <div class="container-teste">
+                        <h4>Caixa Teste</h4>
+                        <div><strong>DHT-U:</strong> <span id="dht-u_teste">--</span> %</div>
+                        <div><strong>DHT-T:</strong> <span id="dht-t_teste">--</span> °C</div>
+                        <div><strong>MLX-A:</strong> <span id="mlx-a_teste">--</span> °C</div>
+                        <div><strong>MLX-IR:</strong> <span id="mlx-ir_teste">--</span> °C</div>
+                    </div>
+
+                    <div class="container-controle">
+                        <h4>Caixa Controle</h4>
+                        <div><strong>DHT-U:</strong> <span id="dht-u_controle">--</span> %</div>
+                        <div><strong>DHT-T:</strong> <span id="dht-t_controle">--</span> °C</div>
+                        <div><strong>MLX-A:</strong> <span id="mlx-a_controle">--</span> °C</div>
+                        <div><strong>MLX-IR:</strong> <span id="mlx-ir_controle">--</span> °C</div>
+                    </div>
+                </div>
+
+                <button onclick="temperaturesNow()">Atualizar Dados</button>
+            </div>
+
+
+        </section>
+
+        <section class="graph-section">
             <canvas id="realtimeChart"></canvas>
             <button onclick="downloadGraphImage()">Salvar Gráfico</button>
-        </div>
-    </section>
-    
-    <script src="app.js"></script>
+        </section>
+
+        <script src="app.js"></script>
     </main>
-    </body>
+</body>
+
 </html>
