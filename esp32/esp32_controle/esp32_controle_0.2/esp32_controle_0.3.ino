@@ -62,7 +62,6 @@ void taskLeituraMLX(void* parameter);
 void publicarMQTT(bool publicarTudo = false);
 
 SemaphoreHandle_t mutexMQTT;
-SemaphoreHandle_t mutexControle;
 
 TaskHandle_t taskHandleDHT = NULL;
 TaskHandle_t taskHandleMLX = NULL;
@@ -374,19 +373,34 @@ void publicarMQTT(bool publicarTudo) {
 }
 
 
-void taskMqtt(void* parameter) {
+void taskPublicacaoMQTT(void* parameter) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
   for (;;) {
-    if (!client.connected()) {
-      reconnectToBrokerMqtt();  // essa função já usa mutex internamente
-    }
+    bool dado = uxQueueMessagesWaiting(filaDHT) > 0 || uxQueueMessagesWaiting(filaMLX) > 0;
 
-    if (xSemaphoreTake(mutexMQTT, pdMS_TO_TICKS(50)) == pdTRUE) {
-      client.loop();  // rápido, mas ainda assim protegido
-      xSemaphoreGive(mutexMQTT);
-    }
+    if (dado || publicarTudoFlag) {
+      publicarMQTT(publicarTudoFlag);
 
-    vTaskDelay(pdMS_TO_TICKS(100));  // executa a cada 100 ms
+      if (publicarTudoFlag) {
+        publicarTudoFlag = false;
+      }
+
+      vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5000));
+    } else {
+      vTaskDelay(pdMS_TO_TICKS(200));
+    }
   }
+}
+
+
+void resetarBarramentoDHT() {
+  pinMode(DHT_PIN, OUTPUT);
+  digitalWrite(DHT_PIN, LOW);
+  delay(10);  // Força nível baixo no barramento
+  digitalWrite(DHT_PIN, HIGH);
+  delay(10);                       // Sobe o barramento
+  pinMode(DHT_PIN, INPUT_PULLUP);  // Volta para o estado normal antes do dht.begin()
 }
 
 
@@ -410,7 +424,7 @@ void taskHeartbeat(void* parameter) {
   const int intervaloHeartbeat = 10000;
 
   for (;;) {
-    snprintf(payload, sizeof(payload), "[MQTT_CONTROLE]: ESP32-CONTROLE OK — %lu", millis());
+    snprintf(payload, sizeof(payload), "[MQTT_CONTROLE]: ESP32-CONTROLE OK — %lu", millis() / 1000);
 
     if (xSemaphoreTake(mutexMQTT, pdMS_TO_TICKS(100)) == pdTRUE) {
       if (client.connected()) {
@@ -428,16 +442,17 @@ void setup() {
   delay(1000);
 
   mutexMQTT = xSemaphoreCreateMutex();
-  mutexControle = xSemaphoreCreateMutex();
 
   filaDHT = xQueueCreate(100, sizeof(Leitura));
   filaMLX = xQueueCreate(100, sizeof(Leitura));
 
   resetarBarramentoI2C();
   delay(100);
-
   Wire.begin(27, 14);
   mlx.begin();
+
+  resetarBarramentoDHT();
+  delay(100);  
   dht.begin();
 
   analogReadResolution(12);
@@ -453,9 +468,9 @@ void setup() {
   xTaskCreatePinnedToCore(
     taskPublicacaoMQTT, "taskPublicacao", 10240, NULL, 1, NULL, 0);
 
-  xTaskCreatePinnedToCore(taskMqtt, "MQTT", 10240, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(taskMqtt, "MQTT", 10240, NULL, 2, NULL, 1);
 
-  xTaskCreatePinnedToCore(taskHeartbeat, "Heartbeat", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(taskHeartbeat, "Heartbeat", 4096, NULL, 1, NULL, 0);
 
   Serial.println("\nSISTEMA INICIANDO...");
 }

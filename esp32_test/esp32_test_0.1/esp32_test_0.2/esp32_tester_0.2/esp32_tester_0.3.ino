@@ -34,15 +34,15 @@ const char* redes[][2] = {
 //CONF MQTT
 const char* mqtt_server = "192.168.15.24";
 const int mqtt_port = 1883;
-const char* mqtt_id = "ESP32TESTE";
+const char* mqtt_id = "ESP32TESTER";
 const char* mqtt_user = "servbd";
 const char* mqtt_password = "Un1f3sp1";
 const char* controlTopic = "sensores/control";
-const char* statusSensoresTopic = "sensoresStatus/teste";
-const char* statusESPTopic = "espStatus/teste";
-const char* statusNetTopic = "conexoesStatus/teste";
-const char* dataDhtTopic = "sensoresDht/teste";
-const char* dataMlxTopic = "sensoresMlx/teste";
+const char* statusSensoresTopic = "sensoresStatus/tester";
+const char* statusESPTopic = "espStatus/tester";
+const char* statusNetTopic = "conexoesStatus/tester";
+const char* dataDhtTopic = "sensoresDht/tester";
+const char* dataMlxTopic = "sensoresMlx/tester";
 
 
 WiFiClient espClient;
@@ -61,8 +61,8 @@ void taskLeituraDHT(void* parameter);
 void taskLeituraMLX(void* parameter);
 void publicarMQTT(bool publicarTudo = false);
 
+
 SemaphoreHandle_t mutexMQTT;
-SemaphoreHandle_t mutexControle;
 
 TaskHandle_t taskHandleDHT = NULL;
 TaskHandle_t taskHandleMLX = NULL;
@@ -140,7 +140,7 @@ void reconnectToBrokerMqtt() {
       if (conectado) {
         Serial.println("Conectado ao broker!");
         client.subscribe(controlTopic);
-        client.publish(statusNetTopic, "[MQTT-TESTE]: CONECTADO");
+        client.publish(statusNetTopic, "[MQTT-TESTER]: CONECTADO");
         xSemaphoreGive(mutexMQTT);
         return;
       } else {
@@ -230,15 +230,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (taskHandleDHT != NULL) {
       vTaskDelete(taskHandleDHT);
       taskHandleDHT = NULL;
-      Serial.println("[ESP32-TESTE-TASK]: TASK_DHT_ENCERRADA");
-      client.publish(statusESPTopic, "[ESP32-TESTE-TASK]: TASK_DHT_ENCERRADA");
+      Serial.println("[ESP32-TESTER-TASK]: TASK_DHT_ENCERRADA");
+      client.publish(statusESPTopic, "[ESP32-TESTER-TASK]: TASK_DHT_ENCERRADA");
     }
 
     if (taskHandleMLX != NULL) {
       vTaskDelete(taskHandleMLX);
       taskHandleMLX = NULL;
-      Serial.println("[ESP32-TESTE-TASK]: TASK_MLX_ENCERRADA");
-      client.publish(statusESPTopic, "[ESP32-TESTE-TASK]: TASK_MLX_ENCERRADA");
+      Serial.println("[ESP32-TESTER-TASK]: TASK_MLX_ENCERRADA");
+      client.publish(statusESPTopic, "[ESP32-TESTER-TASK]: TASK_MLX_ENCERRADA");
     }
   }
 }
@@ -321,9 +321,9 @@ void publicarMQTT(bool publicarTudo) {
       if (xSemaphoreTake(mutexMQTT, pdMS_TO_TICKS(100)) == pdTRUE) {
         if (!client.connected()) reconnectToBrokerMqtt();
         if (client.publish(dataDhtTopic, csvDHT, false)) {
-          Serial.println("[MQTT-TESTE]: DHT22-TESTE_PUBLICADO");
+          Serial.println("[MQTT-TESTER]: DHT22-TESTER_PUBLICADO");
         } else {
-          Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_DHT22-TESTE");
+          Serial.println("[MQTT-TESTER]: ERROR_PUBLICAR_DHT22-TESTER");
         }
         xSemaphoreGive(mutexMQTT);
       }
@@ -354,9 +354,9 @@ void publicarMQTT(bool publicarTudo) {
       if (xSemaphoreTake(mutexMQTT, pdMS_TO_TICKS(100)) == pdTRUE) {
         if (!client.connected()) reconnectToBrokerMqtt();
         if (client.publish(dataMlxTopic, csvMLX, false)) {
-          Serial.println("[MQTT-TESTE]: MLX90614-TESTE_PUBLICADO");
+          Serial.println("[MQTT-TESTER]: MLX90614-TESTER_PUBLICADO");
         } else {
-          Serial.println("[MQTT-TESTE]: ERROR_PUBLICAR_MLX90614-TESTE");
+          Serial.println("[MQTT-TESTER]: ERROR_PUBLICAR_MLX90614-TESTER");
         }
         xSemaphoreGive(mutexMQTT);
       }
@@ -374,18 +374,23 @@ void publicarMQTT(bool publicarTudo) {
 }
 
 
-void taskMqtt(void* parameter) {
+void taskPublicacaoMQTT(void* parameter) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
   for (;;) {
-    if (!client.connected()) {
-      reconnectToBrokerMqtt();
-    }
+    bool dado = uxQueueMessagesWaiting(filaDHT) > 0 || uxQueueMessagesWaiting(filaMLX) > 0;
 
-    if (xSemaphoreTake(mutexMQTT, pdMS_TO_TICKS(50)) == pdTRUE) {
-      client.loop();
-      xSemaphoreGive(mutexMQTT);
-    }
+    if (dado || publicarTudoFlag) {
+      publicarMQTT(publicarTudoFlag);
 
-    vTaskDelay(pdMS_TO_TICKS(100));
+      if (publicarTudoFlag) {
+        publicarTudoFlag = false;
+      }
+
+      vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5000));
+    } else {
+      vTaskDelay(pdMS_TO_TICKS(200));
+    }
   }
 }
 
@@ -410,7 +415,7 @@ void taskHeartbeat(void* parameter) {
   const int intervaloHeartbeat = 10000;
 
   for (;;) {
-    snprintf(payload, sizeof(payload), "[MQTT_TESTE]: ESP32-TESTE OK — %lu", millis());
+    snprintf(payload, sizeof(payload), "[MQTT_TESTER]: ESP32-TESTER OK — %lu", millis()/1000);
 
     if (xSemaphoreTake(mutexMQTT, pdMS_TO_TICKS(100)) == pdTRUE) {
       if (client.connected()) {
@@ -428,7 +433,6 @@ void setup() {
   delay(1000);
 
   mutexMQTT = xSemaphoreCreateMutex();
-  mutexControle = xSemaphoreCreateMutex();
 
   filaDHT = xQueueCreate(100, sizeof(Leitura));
   filaMLX = xQueueCreate(100, sizeof(Leitura));
@@ -450,12 +454,11 @@ void setup() {
   client.setCallback(mqttCallback);
   client.setBufferSize(1000);
 
-  xTaskCreatePinnedToCore(
-    taskPublicacaoMQTT, "taskPublicacao", 10240, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(taskPublicacaoMQTT, "taskPublicacao", 10240, NULL, 1, NULL, 0);
 
-  xTaskCreatePinnedToCore(taskMqtt, "MQTT", 10240, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(taskMqtt, "MQTT", 10240, NULL, 2, NULL, 1);
 
-  xTaskCreatePinnedToCore(taskHeartbeat, "Heartbeat", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(taskHeartbeat, "Heartbeat", 4096, NULL, 1, NULL, 0);
 
   Serial.println("\nSISTEMA INICIANDO...");
 }
